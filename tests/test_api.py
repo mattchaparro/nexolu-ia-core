@@ -52,7 +52,9 @@ async def test_chat_rejects_unknown_api_key(client):
     assert response.status_code == 401
 
 
-async def test_chat_happy_path_and_history_roundtrip(client):
+async def test_chat_happy_path_and_history_roundtrip(client, httpx_mock):
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
+
     response = await client.post(
         "/v1/chat",
         json={"agent": "cajero", "message": "hola, como va todo?", "context": CONTEXT},
@@ -73,7 +75,9 @@ async def test_chat_happy_path_and_history_roundtrip(client):
     assert roles == ["user", "assistant"]
 
 
-async def test_chat_unknown_agent_returns_404(client):
+async def test_chat_unknown_agent_returns_404(client, httpx_mock):
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
+
     response = await client.post(
         "/v1/chat",
         json={"agent": "no_existe", "message": "hola", "context": CONTEXT},
@@ -105,6 +109,7 @@ async def test_draft_confirm_dispatches_to_app_and_marks_confirmed(client, httpx
         await session.commit()
         draft_id = draft.id
 
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
     httpx_mock.add_response(url="http://pos.test/api/ai/tools/invoke", json={"data": {"id": 42}})
 
     response = await client.post(
@@ -116,7 +121,7 @@ async def test_draft_confirm_dispatches_to_app_and_marks_confirmed(client, httpx
     assert response.status_code == 200
     assert response.json() == {"status": "confirmed", "data": {"id": 42}}
 
-    dispatched = httpx_mock.get_requests()[0]
+    dispatched = httpx_mock.get_requests(url="http://pos.test/api/ai/tools/invoke")[0]
     import json as json_module
 
     dispatched_body = json_module.loads(dispatched.content)
@@ -143,6 +148,7 @@ async def test_draft_confirm_twice_conflicts(client, httpx_mock):
         await session.commit()
         draft_id = draft.id
 
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
     httpx_mock.add_response(url="http://pos.test/api/ai/tools/invoke", json={"data": {}})
 
     first = await client.post(f"/v1/drafts/{draft_id}/confirm", json={"context": CONTEXT}, headers=HEADERS)

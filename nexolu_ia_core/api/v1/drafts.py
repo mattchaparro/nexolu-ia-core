@@ -22,6 +22,7 @@ from nexolu_ia_core.core.schemas import TenantContext
 from nexolu_ia_core.core.tools.dispatch_client import AppToolClient, ToolDispatchError
 from nexolu_ia_core.core.tools.exceptions import ToolInputException, ToolNotAllowedException
 from nexolu_ia_core.core.tools.guard import ToolGuard
+from nexolu_ia_core.core.tools.remote_catalog import get_remote_tool_catalog
 
 router = APIRouter(prefix="/v1/drafts", tags=["drafts"])
 
@@ -59,6 +60,7 @@ async def confirm_draft(
     draft, _repo = await _load_pending_draft(draft_id, app, payload.context, session)
 
     bundle = get_app_bundle(app.app_id)
+    await get_remote_tool_catalog().sync(bundle.tools, app)
 
     try:
         tool = bundle.tools.resolve_for(payload.context, draft.tool_name)

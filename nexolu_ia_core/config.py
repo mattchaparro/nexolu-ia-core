@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     # Registro de apps cliente, como JSON crudo (parseado en `apps`).
     nexolu_apps_json: str = "{}"
 
+    # Cuanto tiempo confiar en el catalogo de permisos/features de una app
+    # (ver core/tools/remote_catalog.py) antes de volver a consultarlo. Un
+    # dia por defecto: ese dato cambia poco y consultarlo en cada mensaje de
+    # chat le pegaria al backend de la app sin necesidad.
+    tool_catalog_ttl_seconds: int = Field(default=86400)
+
     log_level: str = "INFO"
 
     @property

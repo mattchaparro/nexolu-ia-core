@@ -29,6 +29,7 @@ def app_env(tmp_path, monkeypatch):
 
 def _clear_caches() -> None:
     import nexolu_ia_core.core.auth.apps as apps_module
+    import nexolu_ia_core.core.tools.remote_catalog as remote_catalog_module
     from nexolu_ia_core.config import get_settings
     from nexolu_ia_core.core.memory.db import get_engine, get_sessionmaker
     from nexolu_ia_core.providers.registry import get_provider_registry
@@ -38,3 +39,4 @@ def _clear_caches() -> None:
     get_sessionmaker.cache_clear()
     get_provider_registry.cache_clear()
     apps_module._registry = None
+    remote_catalog_module._instance = None

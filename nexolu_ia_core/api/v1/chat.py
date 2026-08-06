@@ -17,6 +17,7 @@ from nexolu_ia_core.core.memory.db import get_session
 from nexolu_ia_core.core.memory.repository import ConversationRepository
 from nexolu_ia_core.core.models.router import ModelRouter
 from nexolu_ia_core.core.schemas import ChatMessageIn, ChatMessageOut
+from nexolu_ia_core.core.tools.remote_catalog import get_remote_tool_catalog
 from nexolu_ia_core.providers.registry import get_provider_registry
 
 router = APIRouter(prefix="/v1", tags=["chat"])
@@ -32,6 +33,8 @@ async def send_chat_message(
         bundle = get_app_bundle(app.app_id)
     except KeyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    await get_remote_tool_catalog().sync(bundle.tools, app)
 
     try:
         agent = bundle.agents.get(payload.agent)
