@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 
-from nexolu_ia_core.api.v1 import chat, conversations, drafts, health, usage
+from nexolu_ia_core.api.v1 import chat, completions, conversations, drafts, health, usage
 from nexolu_ia_core.config import get_settings
 from nexolu_ia_core.core.memory.db import init_models
 from nexolu_ia_core.core.telemetry.logging import configure_logging
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router)
     app.include_router(chat.router)
+    app.include_router(completions.router)
     app.include_router(conversations.router)
     app.include_router(drafts.router)
     app.include_router(usage.router)

@@ -139,3 +139,28 @@ class ChatMessageOut(BaseModel):
     text: str
     tools_used: list[str] = Field(default_factory=list)
     drafts: list[DraftOut] = Field(default_factory=list)
+
+
+class CompletionIn(BaseModel):
+    """Payload de entrada de POST /v1/completions.
+
+    A diferencia de /v1/chat, no hay conversacion ni herramientas: la app
+    llamante ya calculo sus propios numeros (ver AiInsightDefinition en el
+    POS) y solo necesita que el modelo los redacte en un system+user prompt
+    de una sola pasada, sin historial que persistir.
+    """
+
+    system: str
+    user: str
+    context: TenantContext
+    max_tokens: int = 400
+
+
+class CompletionOut(BaseModel):
+    """Respuesta de POST /v1/completions."""
+
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    model: str = ""
+    cost_micros: int | None = None
