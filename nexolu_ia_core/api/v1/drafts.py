@@ -57,26 +57,27 @@ async def confirm_draft(
     app: AppIdentity = Depends(get_current_app),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    draft, _repo = await _load_pending_draft(draft_id, app, payload.context, session)
+    context = payload.context.resolved(app.app_id)
+    draft, _repo = await _load_pending_draft(draft_id, app, context, session)
 
     bundle = get_app_bundle(app.app_id)
     await get_remote_tool_catalog().sync(bundle.tools, app)
 
     try:
-        tool = bundle.tools.resolve_for(payload.context, draft.tool_name)
+        tool = bundle.tools.resolve_for(context, draft.tool_name)
     except ToolNotAllowedException as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
 
     raw_values = payload.values if payload.values is not None else draft.payload
 
     try:
-        arguments = ToolGuard().sanitize(tool, payload.context, raw_values)
+        arguments = ToolGuard().sanitize(tool, context, raw_values)
     except ToolInputException as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     client = AppToolClient(app)
     try:
-        data = await client.invoke(tool.name, arguments, payload.context)
+        data = await client.invoke(tool.name, arguments, context)
     except ToolDispatchError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
@@ -93,7 +94,7 @@ async def discard_draft(
     app: AppIdentity = Depends(get_current_app),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    draft, _repo = await _load_pending_draft(draft_id, app, payload.context, session)
+    draft, _repo = await _load_pending_draft(draft_id, app, payload.context.resolved(app.app_id), session)
 
     draft.status = "discarded"
     await session.commit()

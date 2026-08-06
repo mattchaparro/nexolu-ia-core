@@ -53,7 +53,7 @@ async def send_chat_message(
             app_display_name=bundle.display_name,
             tool_registry=bundle.tools,
             agent=agent,
-            context=payload.context,
+            context=payload.context.resolved(app.app_id),
             message=payload.message,
             conversation_id=payload.conversation_id,
         )

@@ -58,7 +58,7 @@ async def create_completion(
 
     await ConversationRepository(session).record_usage(
         app_id=app.app_id,
-        business_id=payload.context.business_id,
+        business_id=payload.context.resolved(app.app_id).business_id,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
         cost_micros=cost_micros,

@@ -75,6 +75,29 @@ async def test_chat_happy_path_and_history_roundtrip(client, httpx_mock):
     assert roles == ["user", "assistant"]
 
 
+async def test_chat_without_business_id_falls_back_to_the_app_id(client, httpx_mock):
+    """Una app sin concepto de tenant (spa/colegio, un solo cliente) puede
+    omitir business_id por completo - el Core no debe rechazarla, y toda su
+    actividad debe quedar bajo su propio app_id como particion."""
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
+
+    context_without_business = {k: v for k, v in CONTEXT.items() if k != "business_id"}
+    response = await client.post(
+        "/v1/chat",
+        json={"agent": "cajero", "message": "hola", "context": context_without_business},
+        headers=HEADERS,
+    )
+    assert response.status_code == 200
+    conversation_id = response.json()["conversation_id"]
+
+    history = await client.get(
+        f"/v1/conversations/{conversation_id}",
+        params={"business_id": "pos", "user_id": "u1"},
+        headers=HEADERS,
+    )
+    assert history.status_code == 200
+
+
 async def test_chat_unknown_agent_returns_404(client, httpx_mock):
     httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
 

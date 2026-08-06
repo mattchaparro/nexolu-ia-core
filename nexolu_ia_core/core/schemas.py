@@ -104,7 +104,12 @@ class TenantContext(BaseModel):
     esta aserción viaja autenticada por app, no por el usuario final.
     """
 
-    business_id: str
+    # Clave de particion OPACA (conversaciones, drafts, uso/costo) - el Core
+    # nunca la valida contra nada propio, no tiene que significar "negocio"
+    # literal (mismo patron que nexolu-comms-api). Una app sin concepto de
+    # tenant (un solo cliente, sin sub-negocios) puede omitirla: cada
+    # endpoint la resuelve a su propio app_id via `resolved()` antes de usarla.
+    business_id: str | None = None
     user_id: str
     is_admin: bool = False
     permissions: list[str] = Field(default_factory=list)
@@ -112,6 +117,12 @@ class TenantContext(BaseModel):
     channel: str = "web"
     timezone: str = "America/Bogota"
     locale: str = "es"
+
+    def resolved(self, app_id: str) -> TenantContext:
+        """Copia con business_id resuelto: si la app no mando uno, cae al
+        propio app_id - asi toda su actividad queda bajo una sola particion
+        en vez de fallar por falta de un dato que no le aplica."""
+        return self if self.business_id else self.model_copy(update={"business_id": app_id})
 
 
 class ChatMessageIn(BaseModel):
