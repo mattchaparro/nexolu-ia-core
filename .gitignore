@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Nexolu IA Core: base de datos SQLite de desarrollo local
+*.db
+*.db-journal
