@@ -26,12 +26,12 @@ class ProviderRegistry:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
 
-    def resolve(self, name: str, model_override: str | None = None) -> ChatProvider:
+    def resolve(self, name: str, model_override: str | None = None, api_key_override: str | None = None) -> ChatProvider:
         builders = {
-            "openrouter": lambda: OpenRouterProvider(self._settings, model_override),
-            "openai": lambda: OpenAIProvider(self._settings, model_override),
-            "deepseek": lambda: DeepSeekProvider(self._settings, model_override),
-            "anthropic": lambda: AnthropicProvider(self._settings, model_override),
+            "openrouter": lambda: OpenRouterProvider(self._settings, model_override, api_key_override),
+            "openai": lambda: OpenAIProvider(self._settings, model_override, api_key_override),
+            "deepseek": lambda: DeepSeekProvider(self._settings, model_override, api_key_override),
+            "anthropic": lambda: AnthropicProvider(self._settings, model_override, api_key_override),
             "null": NullProvider,
         }
 

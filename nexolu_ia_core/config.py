@@ -15,11 +15,23 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class AppRegistration(BaseSettings):
-    """Una aplicacion cliente del Core (POS, Spa, EasyTickets...)."""
+    """Una aplicacion cliente del Core (POS, Spa, EasyTickets...).
+
+    provider/model/provider_api_key son opcionales: una app que no los
+    declara usa el default global (DEFAULT_PROVIDER/DEFAULT_MODEL y la API
+    key global de ese proveedor). Declararlos es lo que permite que, por
+    ejemplo, el POS use un modelo barato con su propio workspace de
+    OpenRouter y el Spa use uno mas potente con el suyo - estadisticas,
+    costos y acceso a modelos quedan segregados por app en el dashboard del
+    proveedor, no mezclados bajo una sola cuenta. Ver ModelRouter.resolve().
+    """
 
     api_key: str
     base_url: str
     name: str = ""
+    provider: str | None = None
+    model: str | None = None
+    provider_api_key: str | None = None
 
 
 class Settings(BaseSettings):
@@ -77,6 +89,15 @@ class Settings(BaseSettings):
     # dia por defecto: ese dato cambia poco y consultarlo en cada mensaje de
     # chat le pegaria al backend de la app sin necesidad.
     tool_catalog_ttl_seconds: int = Field(default=86400)
+
+    # Credencial de PLATAFORMA (Nexolu, no una app individual): da acceso a
+    # GET /v1/platform/usage, que agrega el gasto por app_id de TODAS las
+    # apps. Nunca se le entrega a una app integradora - esa usa su propia
+    # api_key para ver solo su propio gasto en GET /v1/usage/*. Vacia por
+    # defecto: sin ella, /v1/platform/usage responde 503 en vez de quedar
+    # accesible sin proteccion. Prefijo NEXOLU_ (no per-app) a proposito,
+    # igual que NEXOLU_APPS_JSON.
+    nexolu_platform_api_key: str = ""
 
     log_level: str = "INFO"
 

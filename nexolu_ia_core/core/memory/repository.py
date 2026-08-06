@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexolu_ia_core.core.memory.entities import (
@@ -135,6 +135,61 @@ class ConversationRepository:
             UsageDaily.date == date.today(),
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
+
+    async def usage_daily_series(
+        self, *, app_id: str, business_id: str | None, date_from: date, date_to: date
+    ) -> list[UsageDaily]:
+        """Filas crudas en el rango, una por dia (y por negocio si no se
+        filtra uno solo) - lo que alimenta un grafico de serie diaria."""
+        stmt = select(UsageDaily).where(
+            UsageDaily.app_id == app_id,
+            UsageDaily.date >= date_from,
+            UsageDaily.date <= date_to,
+        )
+        if business_id is not None:
+            stmt = stmt.where(UsageDaily.business_id == business_id)
+        stmt = stmt.order_by(UsageDaily.date)
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def usage_by_business(
+        self, *, app_id: str, date_from: date, date_to: date
+    ) -> list[tuple[str, int, int, int, int]]:
+        """Agregado por negocio dentro de UNA app - lo que el dueño de esa
+        app usa para ver cuanto gasta cada uno de sus tenants."""
+        stmt = (
+            select(
+                UsageDaily.business_id,
+                func.sum(UsageDaily.message_count),
+                func.sum(UsageDaily.input_tokens),
+                func.sum(UsageDaily.output_tokens),
+                func.sum(UsageDaily.cost_micros),
+            )
+            .where(
+                UsageDaily.app_id == app_id,
+                UsageDaily.date >= date_from,
+                UsageDaily.date <= date_to,
+            )
+            .group_by(UsageDaily.business_id)
+            .order_by(UsageDaily.business_id)
+        )
+        return [tuple(row) for row in (await self._session.execute(stmt)).all()]
+
+    async def usage_by_app(self, *, date_from: date, date_to: date) -> list[tuple[str, int, int, int, int]]:
+        """Agregado por app, cruzando TODOS los tenants de TODAS las apps -
+        exclusivo del reporte de plataforma (ver require_platform_access)."""
+        stmt = (
+            select(
+                UsageDaily.app_id,
+                func.sum(UsageDaily.message_count),
+                func.sum(UsageDaily.input_tokens),
+                func.sum(UsageDaily.output_tokens),
+                func.sum(UsageDaily.cost_micros),
+            )
+            .where(UsageDaily.date >= date_from, UsageDaily.date <= date_to)
+            .group_by(UsageDaily.app_id)
+            .order_by(UsageDaily.app_id)
+        )
+        return [tuple(row) for row in (await self._session.execute(stmt)).all()]
 
     async def expire_stale_drafts(self, older_than: timedelta = timedelta(hours=24)) -> None:
         """Housekeeping simple; no se llama automaticamente todavia -- queda

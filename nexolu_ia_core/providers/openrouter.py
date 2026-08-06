@@ -14,10 +14,16 @@ from nexolu_ia_core.providers.openai_compatible import OpenAICompatibleProvider
 
 
 class OpenRouterProvider(OpenAICompatibleProvider):
-    def __init__(self, settings: Settings, model_override: str | None = None) -> None:
+    def __init__(
+        self, settings: Settings, model_override: str | None = None, api_key_override: str | None = None
+    ) -> None:
         super().__init__(
             provider_name="openrouter",
-            api_key=settings.openrouter_api_key,
+            # api_key_override: workspace de OpenRouter propio de la app que
+            # llama (ver AppRegistration.provider_api_key), para que costos y
+            # modelos disponibles queden segregados por app en OpenRouter en
+            # vez de compartir una sola cuenta.
+            api_key=api_key_override or settings.openrouter_api_key,
             base_url=settings.openrouter_base_url,
             model=model_override or settings.openrouter_model,
             price_input_per_mtok=settings.openrouter_price_input_per_mtok,

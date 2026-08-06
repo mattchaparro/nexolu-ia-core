@@ -115,3 +115,20 @@ async def test_http_error_raises_provider_error(httpx_mock):
 
     with pytest.raises(AiProviderError):
         await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+
+async def test_api_key_override_is_used_instead_of_the_global_settings_key(httpx_mock):
+    """El workspace de OpenRouter de una app puntual (ver
+    AppRegistration.provider_api_key) tiene que pisar la key global - asi el
+    costo/uso queda en el dashboard de esa app, no en la cuenta compartida."""
+    provider = OpenRouterProvider(make_settings(), api_key_override="sk-or-app-especifica")
+
+    httpx_mock.add_response(
+        url="https://openrouter.test/api/v1/chat/completions",
+        json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}},
+    )
+
+    await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    request = httpx_mock.get_requests()[0]
+    assert request.headers["Authorization"] == "Bearer sk-or-app-especifica"

@@ -16,11 +16,13 @@ from nexolu_ia_core.providers.exceptions import AiProviderError
 
 
 class AnthropicProvider(ChatProvider):
-    def __init__(self, settings: Settings, model_override: str | None = None) -> None:
-        if not settings.anthropic_api_key:
+    def __init__(
+        self, settings: Settings, model_override: str | None = None, api_key_override: str | None = None
+    ) -> None:
+        if not api_key_override and not settings.anthropic_api_key:
             raise AiProviderError("Falta ANTHROPIC_API_KEY.")
 
-        self._api_key = settings.anthropic_api_key
+        self._api_key = api_key_override or settings.anthropic_api_key
         self._base_url = settings.anthropic_base_url.rstrip("/")
         self._version = settings.anthropic_version
         self._model = model_override or settings.anthropic_model

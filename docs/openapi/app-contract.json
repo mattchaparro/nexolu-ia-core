@@ -1,0 +1,109 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Contrato de integracion Nexolu IA Core → aplicacion cliente",
+    "version": "1.0.0",
+    "description": "Estos DOS endpoints los implementa la aplicacion que se integra (POS, Spa, EasyTickets...), NO el Nexulu IA Core. Este documento es la especificacion formal de lo que el Core espera poder llamar en `base_url` (ver `NEXOLU_APPS_JSON` en `.env.example`). Ver docs/APP_INTEGRATION.md para la guia paso a paso completa, incluyendo lo que la app debe CONSUMIR del Core (esos endpoints tienen su propia documentacion Swagger, autogenerada, en `/docs` de este servicio)."
+  },
+  "servers": [
+    { "url": "{base_url}", "variables": { "base_url": { "default": "https://tu-app.example.com" } } }
+  ],
+  "components": {
+    "securitySchemes": {
+      "AppApiKey": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "La misma API key configurada en NEXOLU_APPS_JSON.<app_id>.api_key del lado del Core. Estatica, por aplicacion, nunca por usuario final: la app confia en que el Core ya autentico la llamada completa."
+      }
+    },
+    "schemas": {
+      "TenantContext": {
+        "type": "object",
+        "description": "Lo que la app le afirmo al Core al iniciar la conversacion (ver POST /v1/chat en la API del Core), devuelto tal cual en cada invocacion de herramienta. La app DEBE volver a validarlo contra su propia base de datos - nunca confiar en el a ciegas solo porque la llamada esta autenticada con la API key correcta. Ver ejemplo real: App\\Http\\Controllers\\Api\\AiToolInvokeController en el repo nexolu-pos-api.",
+        "required": ["business_id", "user_id"],
+        "properties": {
+          "business_id": { "type": "string", "description": "Id del tenant/negocio dentro de la app, tal como la app lo conoce." },
+          "user_id": { "type": "string", "description": "Id del usuario final dentro de la app." },
+          "is_admin": { "type": "boolean", "default": false },
+          "permissions": { "type": "array", "items": { "type": "string" }, "description": "Permisos EFECTIVOS del usuario en el vocabulario propio de la app (no un vocabulario del Core)." },
+          "features": { "type": "array", "items": { "type": "string" }, "description": "Feature flags habilitados para este negocio, en el vocabulario propio de la app." },
+          "channel": { "type": "string", "default": "web", "example": "web" },
+          "timezone": { "type": "string", "default": "America/Bogota" },
+          "locale": { "type": "string", "default": "es" }
+        }
+      },
+      "InvokeRequest": {
+        "type": "object",
+        "required": ["tool", "context"],
+        "properties": {
+          "tool": { "type": "string", "description": "Nombre de la herramienta tal como aparece en el catalogo de la app (ver GET /api/ai/tools/catalog de este mismo contrato) y en el `Registry`/`ToolRegistry` de la app cliente.", "example": "ventas_resumen" },
+          "arguments": { "type": "object", "additionalProperties": true, "description": "Ya paso por el ToolGuard del Core (tipos coercionados, claves reservadas como business_id/sql/query rechazadas) - la app igual debe revalidar." },
+          "context": { "$ref": "#/components/schemas/TenantContext" }
+        }
+      },
+      "InvokeSuccess": {
+        "type": "object",
+        "required": ["data"],
+        "properties": { "data": { "type": "object", "additionalProperties": true } }
+      },
+      "InvokeError": {
+        "type": "object",
+        "required": ["error"],
+        "properties": { "error": { "type": "string" } }
+      },
+      "ToolCatalog": {
+        "type": "object",
+        "required": ["tools"],
+        "properties": {
+          "tools": {
+            "type": "object",
+            "description": "Un entry por nombre de herramienta declarado del lado del IA Core (apps/<app>/tools.py) que la app tambien conoce.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "required_permission": { "type": ["string", "null"], "description": "Nombre EXACTO del permiso real en el catalogo de permisos de la app, o null si no requiere ninguno." },
+                "required_feature": { "type": ["string", "null"], "description": "Nombre EXACTO del feature flag real de la app, o null si siempre esta disponible." }
+              }
+            },
+            "example": {
+              "ventas_resumen": { "required_permission": "reports.sales", "required_feature": null },
+              "crear_gasto": { "required_permission": "expenses.create", "required_feature": "expenses" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "AppApiKey": [] }],
+  "paths": {
+    "/api/ai/tools/invoke": {
+      "post": {
+        "summary": "Despacho unico de herramientas (el Core llama esto para ejecutar CUALQUIER capacidad de negocio)",
+        "description": "No hay una ruta por herramienta a proposito: agregar una herramienta nueva del lado de la app es una entrada mas en su Registry interno, nunca una ruta HTTP nueva. Ver referencia real: AiToolInvokeController + App\\Capabilities\\Registry en nexolu-pos-api.\n\nResponsabilidades minimas de la implementacion:\n1. Resolver `context.business_id`/`context.user_id` contra la propia base de datos (nunca confiar en el bloque `context` a ciegas) y rechazar si no coinciden (422).\n2. Resolver `tool` contra el registry propio; 404 si no existe.\n3. Revalidar permiso/feature (no confiar en que el Core ya filtro bien - defensa en profundidad).\n4. Revalidar `arguments` contra las reglas propias de esa capacidad.\n5. Ejecutar reusando la MISMA logica de negocio/Services que ya usan los endpoints HTTP normales - nunca una implementacion paralela.\n6. Las herramientas de ESCRITURA se ejecutan de inmediato aca: la confirmacion humana ya ocurrio del lado del Core (ver POST /v1/drafts/{id}/confirm) antes de que esta llamada exista.",
+        "security": [{ "AppApiKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeRequest" } } }
+        },
+        "responses": {
+          "200": { "description": "Ejecucion exitosa.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeSuccess" } } } },
+          "401": { "description": "API key invalida o ausente.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeError" } } } },
+          "404": { "description": "Herramienta desconocida.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeError" } } } },
+          "403": { "description": "Permiso o feature insuficiente.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeError" } } } },
+          "422": { "description": "Contexto invalido o argumentos que no pasan validacion.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeError" } } } }
+        }
+      }
+    },
+    "/api/ai/tools/catalog": {
+      "get": {
+        "summary": "Permisos/features reales por herramienta, consultados por el Core y cacheados ~24h",
+        "description": "Existe para que la app nunca tenga que coordinar un redeploy del Core cuando renombra un permiso o feature: el Core (ver core/tools/remote_catalog.py, RemoteToolCatalog) lo consulta con un TTL configurable (TOOL_CATALOG_TTL_SECONDS, un dia por defecto) y sobreescribe sus valores por defecto con esta respuesta. Si la app no responde, el Core sigue usando la ultima respuesta buena (o sus defaults locales si nunca hubo una) - implementar este endpoint no es estrictamente obligatorio para que la integracion funcione, pero sin el cualquier cambio de nombre de permiso hay que coordinarlo a mano en el otro repo.",
+        "security": [{ "AppApiKey": [] }],
+        "responses": {
+          "200": { "description": "Catalogo actual.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ToolCatalog" } } } },
+          "401": { "description": "API key invalida o ausente.", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InvokeError" } } } }
+        }
+      }
+    }
+  }
+}

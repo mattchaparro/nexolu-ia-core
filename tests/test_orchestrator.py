@@ -45,7 +45,7 @@ class FixedProviderRegistry(ProviderRegistry):
     def __init__(self, provider: ChatProvider) -> None:
         self._provider = provider
 
-    def resolve(self, name: str, model_override: str | None = None) -> ChatProvider:
+    def resolve(self, name: str, model_override: str | None = None, api_key_override: str | None = None) -> ChatProvider:
         return self._provider
 
 

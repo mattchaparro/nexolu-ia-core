@@ -104,8 +104,8 @@ class ChatOrchestrator:
             for t in tools.values()
         ]
 
-        selection = self._router.resolve(agent)
-        provider = self._providers.resolve(selection.provider, selection.model)
+        selection = self._router.resolve(agent, app_identity)
+        provider = self._providers.resolve(selection.provider, selection.model, selection.api_key_override)
         client = AppToolClient(app_identity)
 
         turns = await self._build_turns(conversation.id, context)
