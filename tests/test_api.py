@@ -14,7 +14,7 @@ CONTEXT = {
     "user_id": "u1",
     "is_admin": True,
     "permissions": [],
-    "features": [],
+    "features": ["expenses", "clients"],
     "channel": "web",
 }
 

@@ -20,7 +20,7 @@ from nexolu_ia_core.providers.base import ChatProvider
 from nexolu_ia_core.providers.registry import ProviderRegistry
 
 APP = AppIdentity(app_id="pos", api_key="dev-pos-key", base_url="http://pos.test", name="Nexolu POS")
-ADMIN_CONTEXT = TenantContext(business_id="b1", user_id="u1", is_admin=True)
+ADMIN_CONTEXT = TenantContext(business_id="b1", user_id="u1", is_admin=True, features=["expenses", "clients"])
 
 
 class ScriptedProvider(ChatProvider):

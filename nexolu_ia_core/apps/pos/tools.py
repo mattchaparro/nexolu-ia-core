@@ -3,10 +3,21 @@
 Esto es solo metadata: nombre, descripcion, JSON Schema y permisos. La
 ejecucion real de cada una viaja por `AppToolClient` hacia
 `POST {base_url}/api/ai/tools/invoke` del lado del POS (Laravel) -- ese
-endpoint todavia no existe en el POS real y se conecta en otra sesion (ver
-el pedido original). Los nombres coinciden a proposito con los que ya usa
-`App\\Services\\Ai\\Tools\\*` hoy, para que migrar trafico sea apuntar el
-`base_url`, no rediseñar el catalogo.
+endpoint ya existe en el POS real (`App\\Capabilities\\*`, ver
+`App\\Http\\Controllers\\Api\\AiToolInvokeController`); apuntar
+`base_url` a esa app es toda la migracion necesaria.
+
+Los `name` de cada herramienta son el contrato compartido con
+`App\\Capabilities\\Registry::MAP` del lado del POS y viajan en español
+a proposito (son datos, no codigo: el catalogo que ve el modelo). Las
+clases que las implementan del lado del POS estan en ingles porque ahi
+aplica la convencion de codigo del proyecto, pero el string por el que se
+invocan es el mismo en los dos lados. `required_permission` y
+`required_feature`, en cambio, tienen que calzar EXACTO con los nombres
+reales de `App\\Support\\PermissionCatalog` y `feature_flags` de Laravel
+- son claves de otro sistema, no vocabulario propio: un typo aca no rompe
+nada en este repo (los tests locales no lo detectan), pero silenciosamente
+esconde o expone mal una herramienta del lado del POS.
 
 Las herramientas de escritura (`crear_gasto`, `crear_producto`,
 `crear_cliente`) nunca ejecutan de inmediato: generan un borrador que el
@@ -57,7 +68,7 @@ def build_tool_registry() -> ToolRegistry:
             name="estado_caja",
             description="Estado actual de la caja: si esta abierta, saldo esperado y turno vigente.",
             parameters={"type": "object", "properties": {}},
-            required_permission="cash.view",
+            required_permission="cash_shift.manage",
         )
     )
 
@@ -71,7 +82,6 @@ def build_tool_registry() -> ToolRegistry:
                     "categoria": {"type": "string", "description": "Nombre de la categoria a filtrar."},
                 },
             },
-            required_feature="inventario",
             required_permission="inventory.view",
         )
     )
@@ -87,7 +97,6 @@ def build_tool_registry() -> ToolRegistry:
                 },
                 "required": ["producto"],
             },
-            required_feature="inventario",
             required_permission="inventory.view",
         )
     )
@@ -107,6 +116,7 @@ def build_tool_registry() -> ToolRegistry:
                 "required": ["concepto", "monto"],
             },
             required_permission="expenses.create",
+            required_feature="expenses",
             draft_type="gasto",
             summarize=lambda values: f"Gasto: {values.get('concepto')} por ${values.get('monto')}",
             fields=lambda _context: {
@@ -132,7 +142,7 @@ def build_tool_registry() -> ToolRegistry:
                 },
                 "required": ["nombre", "precio"],
             },
-            required_permission="products.create",
+            required_permission="inventory.add",
             draft_type="producto",
             summarize=lambda values: f"Producto: {values.get('nombre')} - ${values.get('precio')}",
             fields=lambda _context: {
@@ -157,7 +167,8 @@ def build_tool_registry() -> ToolRegistry:
                 },
                 "required": ["nombre"],
             },
-            required_permission="customers.create",
+            required_permission="clients.manage",
+            required_feature="clients",
             draft_type="cliente",
             summarize=lambda values: f"Cliente: {values.get('nombre')}",
             fields=lambda _context: {

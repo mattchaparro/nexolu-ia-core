@@ -122,11 +122,11 @@ mensajes), y los endpoints HTTP de punta a punta.
   proveedor concreto ahi y ofrecerlo como una herramienta mas no requiere
   tocar `core/chat`.
 
-## Que falta para conectar el POS real
+## Conectar el POS real
 
-Este repo deja `apps/pos` con el catalogo de herramientas y agentes ya
-definido (mismos nombres que hoy usa `App\Services\Ai\Tools\*` en Laravel),
-pero la ejecucion real depende de que el POS implemente un unico endpoint:
+`apps/pos` define el catalogo de herramientas y agentes con los mismos
+nombres que usa `App\Capabilities\Registry` del lado del POS (Laravel,
+repo `nexolu-pos-api`). Ese endpoint ya existe:
 
 ```
 POST {base_url}/api/ai/tools/invoke
@@ -135,5 +135,15 @@ Authorization: Bearer <api_key de esa app>
 -> {"data": {...}}  o  {"error": "..."}
 ```
 
-Con ese endpoint arriba, apuntar `NEXOLU_APPS_JSON.pos.base_url` al POS real
-es toda la migracion necesaria -- no hay que tocar el Core.
+Apuntar `NEXOLU_APPS_JSON.pos.base_url` al POS real es toda la migracion
+necesaria -- no hay que tocar el Core.
+
+`required_permission`/`required_feature` de cada `Tool` en `apps/pos/tools.py`
+tienen que coincidir EXACTO con los nombres reales de
+`App\Support\PermissionCatalog` y `feature_flags` del lado del POS - son
+claves de otro sistema, no vocabulario propio de este repo, asi que un typo
+aca no lo detecta ningun test local (silenciosamente esconde o expone mal
+una herramienta). Los nombres de las herramientas (`ventas_resumen`,
+`crear_gasto`, ...) sí son el contrato compartido y viajan en español a
+proposito en los dos lados, aunque las clases que las implementan en el POS
+esten en ingles (convencion de codigo de ese repo, no del contrato).
