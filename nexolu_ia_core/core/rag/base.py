@@ -11,8 +11,10 @@ Lo que si aporta valor hoy es dejar la interfaz lista: cuando haga falta
 solo necesita aceptar un `Retriever` opcional y agregar sus resultados al
 contexto -- sin rediseñar nada de `core/chat`.
 
-Persistencia sugerida cuando se implemente: Postgres + `pgvector` (el motor
-de produccion recomendado en `core/memory/db.py` ya lo admite).
+Persistencia: a definir cuando se implemente -- el motor de produccion es
+MySQL (ver `core/memory/db.py`), asi que un vector store dedicado (o una
+libreria de similitud en memoria si el volumen es chico) es mas realista
+que depender de una extension especifica de otro motor.
 """
 from __future__ import annotations
 
