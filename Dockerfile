@@ -1,0 +1,21 @@
+# FastAPI + Uvicorn, sin build de assets ni pasos extra -- el mismo patron
+# se repite igual en nexolu-comms-api y nexolu-payments-core.
+FROM python:3.12-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY pyproject.toml ./
+COPY nexolu_ia_core ./nexolu_ia_core
+COPY alembic ./alembic
+COPY alembic.ini ./
+
+RUN pip install --no-cache-dir .
+
+EXPOSE 8000
+# El esquema se maneja con `alembic upgrade head` como paso de deploy (ver
+# deploy/README.md en nexolu-infra) -- este contenedor NUNCA migra solo al
+# arrancar, para no correr una migracion en paralelo si algun dia hay mas de
+# un replica.
+CMD ["uvicorn", "nexolu_ia_core.main:app", "--host", "0.0.0.0", "--port", "8000"]
