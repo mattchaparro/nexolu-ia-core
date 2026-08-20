@@ -1,9 +1,12 @@
 # FastAPI + Uvicorn, sin build de assets ni pasos extra -- el mismo patron
 # se repite igual en nexolu-comms-api y nexolu-payments-core.
+#
+# Sin gcc a proposito: todas las dependencias de pyproject.toml bajan como
+# wheel precompilado para linux x86_64 (nada se compila desde source) -
+# instalarlo agregaba ~240MB sin necesidad, verificado en vivo el
+# 2026-08-20 (build identico con/sin gcc, mismo resultado, imagen final
+# 536MB -> 293MB).
 FROM python:3.12-slim
-
-RUN apt-get update && apt-get install -y --no-install-recommends gcc \
-    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 COPY pyproject.toml ./
