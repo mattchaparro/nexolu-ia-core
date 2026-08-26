@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -29,6 +30,9 @@ from nexolu_ia_core.core.models.router import ModelRouter
 from nexolu_ia_core.core.schemas import (
     ChatMessageOut,
     ChatRequest,
+    ChatResult,
+    ChatStreamChunk,
+    ChatStreamEvent,
     ChatTurn,
     DraftOut,
     Role,
@@ -40,6 +44,7 @@ from nexolu_ia_core.core.tools.dispatch_client import AppToolClient, ToolDispatc
 from nexolu_ia_core.core.tools.exceptions import ToolInputException, ToolNotAllowedException
 from nexolu_ia_core.core.tools.guard import MAX_TOOL_CALLS_PER_MESSAGE, ToolGuard
 from nexolu_ia_core.core.tools.registry import ToolRegistry
+from nexolu_ia_core.providers.base import ChatProvider
 from nexolu_ia_core.providers.registry import ProviderRegistry
 
 logger = logging.getLogger("nexolu_ia_core.chat")
@@ -105,7 +110,14 @@ class ChatOrchestrator:
         ]
 
         selection = self._router.resolve(agent, app_identity)
-        provider = self._providers.resolve(selection.provider, selection.model, selection.api_key_override)
+        provider = self._providers.resolve(
+            selection.provider,
+            selection.model,
+            selection.api_key_override,
+            selection.site_url,
+            selection.site_name,
+            selection.provider_preferences,
+        )
         client = AppToolClient(app_identity)
 
         turns = await self._build_turns(conversation.id, context)
@@ -230,6 +242,217 @@ class ChatOrchestrator:
             tools_used=list(dict.fromkeys(tools_used)),
             drafts=drafts_created,
         )
+
+    async def send_message_stream(
+        self,
+        *,
+        app_identity: AppIdentity,
+        app_display_name: str,
+        tool_registry: ToolRegistry,
+        agent: AgentDefinition,
+        context: TenantContext,
+        message: str,
+        conversation_id: str | None,
+    ) -> AsyncIterator[ChatStreamChunk]:
+        """Igual que `send_message`, pero entregando el texto del modelo en
+        deltas conforme llegan (SSE), en vez de esperar la respuesta
+        completa. La ejecucion de herramientas NO se transmite token a
+        token (no tiene sentido streamear JSON intermedio): cada turno del
+        loop se streamea, y si ese turno pide herramientas, se ejecutan de
+        forma sincrona antes de streamear el turno siguiente."""
+        text = message.strip()
+        if not text:
+            raise ValueError("El mensaje esta vacio.")
+        if len(text) > MAX_USER_MESSAGE_CHARS:
+            raise ValueError(f"El mensaje no puede superar {MAX_USER_MESSAGE_CHARS} caracteres.")
+
+        conversation = await self._repo.get_or_create(
+            app_id=app_identity.app_id,
+            context=context,
+            agent=agent.name,
+            conversation_id=conversation_id,
+            first_text=text,
+        )
+
+        await self._repo.add_message(
+            conversation_id=conversation.id,
+            app_id=app_identity.app_id,
+            business_id=context.business_id,
+            user_id=context.user_id,
+            role="user",
+            channel=context.channel,
+            content=text,
+        )
+
+        tools = self._tools_for_agent(tool_registry, agent, context)
+        definitions = [
+            ToolDefinition(name=t.name, description=t.description, parameters=t.parameters_for(context))
+            for t in tools.values()
+        ]
+
+        selection = self._router.resolve(agent, app_identity)
+        provider = self._providers.resolve(
+            selection.provider,
+            selection.model,
+            selection.api_key_override,
+            selection.site_url,
+            selection.site_name,
+            selection.provider_preferences,
+        )
+        client = AppToolClient(app_identity)
+
+        turns = await self._build_turns(conversation.id, context)
+
+        tools_used: list[str] = []
+        drafts_created: list[DraftOut] = []
+        input_tokens = 0
+        output_tokens = 0
+        cost_reported: int | None = None
+        final_text: str | None = None
+        system_prompt = self._prompts.build(app_name=app_display_name, agent=agent, context=context)
+
+        for _ in range(MAX_TOOL_CALLS_PER_MESSAGE):
+            started = time.monotonic()
+            result: ChatResult | None = None
+
+            async for event in self._run_turn(
+                provider, ChatRequest(system=system_prompt, messages=turns, tools=definitions, max_tokens=1500)
+            ):
+                if event.delta:
+                    yield ChatStreamChunk(delta=event.delta)
+                if event.done:
+                    result = event.result
+
+            assert result is not None  # _run_turn siempre emite un evento done con result
+            latency_ms = round((time.monotonic() - started) * 1000)
+
+            input_tokens += result.input_tokens
+            output_tokens += result.output_tokens
+            if result.cost_micros is not None:
+                cost_reported = (cost_reported or 0) + result.cost_micros
+
+            if not result.wants_tools():
+                final_text = result.text or "No pude generar una respuesta. Intentalo de nuevo."
+                error_tag = None if result.text else "respuesta_vacia"
+                if not result.text:
+                    # No se streameo nada para este turno (respuesta vacia del
+                    # modelo): el cliente no debe quedarse sin texto alguno.
+                    yield ChatStreamChunk(delta=final_text)
+
+                await self._repo.add_message(
+                    conversation_id=conversation.id,
+                    app_id=app_identity.app_id,
+                    business_id=context.business_id,
+                    user_id=None,
+                    role="assistant",
+                    channel=context.channel,
+                    content=final_text,
+                    provider=provider.name(),
+                    model=result.model,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
+                    latency_ms=latency_ms,
+                    error=error_tag,
+                )
+                break
+
+            await self._repo.add_message(
+                conversation_id=conversation.id,
+                app_id=app_identity.app_id,
+                business_id=context.business_id,
+                user_id=None,
+                role="assistant",
+                channel=context.channel,
+                content=result.text,
+                tool_calls=[c.model_dump() for c in result.tool_calls],
+                provider=provider.name(),
+                model=result.model,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                latency_ms=latency_ms,
+            )
+
+            turns.append(ChatTurn.assistant(result.text, result.tool_calls))
+
+            for call in result.tool_calls:
+                output = await self._execute_tool(
+                    tool_registry=tool_registry,
+                    client=client,
+                    context=context,
+                    app_id=app_identity.app_id,
+                    conversation_id=conversation.id,
+                    user_id=context.user_id,
+                    call=call,
+                    drafts_created=drafts_created,
+                )
+                tools_used.append(call.name)
+
+                await self._repo.add_message(
+                    conversation_id=conversation.id,
+                    app_id=app_identity.app_id,
+                    business_id=context.business_id,
+                    user_id=None,
+                    role="tool",
+                    channel=context.channel,
+                    content=output,
+                    tool_name=call.name,
+                )
+
+                turns.append(ChatTurn.tool_result(call.id, call.name, output))
+
+        if final_text is None:
+            final_text = (
+                "La consulta resulto demasiado compleja. Intenta preguntar algo mas "
+                "concreto, por ejemplo acotando un periodo de fechas."
+            )
+            yield ChatStreamChunk(delta=final_text)
+            await self._repo.add_message(
+                conversation_id=conversation.id,
+                app_id=app_identity.app_id,
+                business_id=context.business_id,
+                user_id=None,
+                role="assistant",
+                channel=context.channel,
+                content=final_text,
+                provider=provider.name(),
+                model=provider.model(),
+                error="max_tool_calls_alcanzado",
+            )
+
+        await self._repo.record_usage(
+            app_id=app_identity.app_id,
+            business_id=context.business_id,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost_micros=cost_reported if cost_reported is not None else provider.estimate_cost_micros(
+                input_tokens, output_tokens
+            ),
+        )
+        await self._repo.touch(conversation)
+
+        yield ChatStreamChunk(
+            done=True,
+            conversation_id=conversation.id,
+            text=final_text,
+            tools_used=list(dict.fromkeys(tools_used)),
+            drafts=drafts_created,
+        )
+
+    async def _run_turn(self, provider: ChatProvider, request: ChatRequest) -> AsyncIterator[ChatStreamEvent]:
+        """Normaliza `chat()` y `chat_stream()` a la misma secuencia de
+        eventos: deltas de texto (si hay) seguidos de un evento final con el
+        `ChatResult` completo. Los proveedores sin streaming (ver
+        `ChatProvider.supports_streaming`) igual funcionan aca, solo que
+        entregan todo el texto de una vez como un unico delta."""
+        if not provider.supports_streaming():
+            result = await provider.chat(request)
+            if result.text:
+                yield ChatStreamEvent(delta=result.text)
+            yield ChatStreamEvent(done=True, result=result)
+            return
+
+        async for event in provider.chat_stream(request):
+            yield event
 
     def _tools_for_agent(self, tool_registry: ToolRegistry, agent: AgentDefinition, context: TenantContext):
         available = tool_registry.available_for(context)

@@ -6,7 +6,11 @@ herramientas de un producto que no es el suyo.
 """
 from __future__ import annotations
 
+import json
+from collections.abc import AsyncIterator
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexolu_ia_core.apps.registry import get_app_bundle
@@ -23,12 +27,7 @@ from nexolu_ia_core.providers.registry import get_provider_registry
 router = APIRouter(prefix="/v1", tags=["chat"])
 
 
-@router.post("/chat", response_model=ChatMessageOut)
-async def send_chat_message(
-    payload: ChatMessageIn,
-    app: AppIdentity = Depends(get_current_app),
-    session: AsyncSession = Depends(get_session),
-) -> ChatMessageOut:
+async def _resolve_bundle_and_agent(payload: ChatMessageIn, app: AppIdentity):
     try:
         bundle = get_app_bundle(app.app_id)
     except KeyError as exc:
@@ -40,6 +39,17 @@ async def send_chat_message(
         agent = bundle.agents.get(payload.agent)
     except KeyError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return bundle, agent
+
+
+@router.post("/chat", response_model=ChatMessageOut)
+async def send_chat_message(
+    payload: ChatMessageIn,
+    app: AppIdentity = Depends(get_current_app),
+    session: AsyncSession = Depends(get_session),
+) -> ChatMessageOut:
+    bundle, agent = await _resolve_bundle_and_agent(payload, app)
 
     orchestrator = ChatOrchestrator(
         repository=ConversationRepository(session),
@@ -62,3 +72,40 @@ async def send_chat_message(
 
     await session.commit()
     return result
+
+
+@router.post("/chat/stream")
+async def send_chat_message_stream(
+    payload: ChatMessageIn,
+    app: AppIdentity = Depends(get_current_app),
+    session: AsyncSession = Depends(get_session),
+) -> StreamingResponse:
+    bundle, agent = await _resolve_bundle_and_agent(payload, app)
+
+    orchestrator = ChatOrchestrator(
+        repository=ConversationRepository(session),
+        provider_registry=get_provider_registry(),
+        model_router=ModelRouter(),
+    )
+
+    async def event_source() -> AsyncIterator[bytes]:
+        try:
+            async for chunk in orchestrator.send_message_stream(
+                app_identity=app,
+                app_display_name=bundle.display_name,
+                tool_registry=bundle.tools,
+                agent=agent,
+                context=payload.context.resolved(app.app_id),
+                message=payload.message,
+                conversation_id=payload.conversation_id,
+            ):
+                yield f"data: {chunk.model_dump_json()}\n\n".encode()
+        except ValueError as exc:
+            # El mensaje no paso las validaciones basicas (vacio, muy largo):
+            # ya empezamos a responder 200 con text/event-stream, asi que el
+            # error viaja como un evento SSE en vez de un status HTTP.
+            yield f"data: {json.dumps({'error': str(exc)}, ensure_ascii=False)}\n\n".encode()
+        else:
+            await session.commit()
+
+    return StreamingResponse(event_source(), media_type="text/event-stream")

@@ -9,13 +9,28 @@ Puerto directo de `App\\Services\\Ai\\Providers\\OpenRouterProvider::buildMessag
 """
 from __future__ import annotations
 
+import asyncio
 import json
+from collections.abc import AsyncIterator
 
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from nexolu_ia_core.core.schemas import ChatRequest, ChatResult, Role, ToolCall
+from nexolu_ia_core.core.schemas import ChatRequest, ChatResult, ChatStreamEvent, Role, ToolCall
 from nexolu_ia_core.providers.base import ChatProvider
-from nexolu_ia_core.providers.exceptions import AiProviderError
+from nexolu_ia_core.providers.exceptions import AiProviderError, AiProviderRetryableError
+
+# 429 (rate limit) y 5xx son transitorios: vale la pena reintentar con
+# backoff. 400/401/403/404 son errores de cliente -- reintentarlos no cambia
+# el resultado, solo demora el error (ver AiProviderRetryableError).
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+_retry_on_transient = retry(
+    retry=retry_if_exception_type(AiProviderRetryableError),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(4),
+    reraise=True,
+)
 
 
 class OpenAICompatibleProvider(ChatProvider):
@@ -33,6 +48,7 @@ class OpenAICompatibleProvider(ChatProvider):
         timeout_seconds: int = 60,
         fallback_models: list[str] | None = None,
         extra_headers: dict[str, str] | None = None,
+        extra_payload: dict | None = None,
     ) -> None:
         if not api_key:
             raise AiProviderError(f"Falta la API key de {provider_name}.")
@@ -46,6 +62,10 @@ class OpenAICompatibleProvider(ChatProvider):
         self._timeout = timeout_seconds
         self._fallback_models = fallback_models or []
         self._extra_headers = extra_headers or {}
+        # Payload extra fusionado tal cual en el body (p.ej. {"provider": {...}}
+        # de ruteo avanzado de OpenRouter). Generico a proposito: este driver
+        # no sabe ni le importa que claves trae, solo las reenvia.
+        self._extra_payload = extra_payload or {}
 
     def name(self) -> str:
         return self._provider_name
@@ -53,7 +73,37 @@ class OpenAICompatibleProvider(ChatProvider):
     def model(self) -> str:
         return self._model
 
+    def supports_streaming(self) -> bool:
+        return True
+
     async def chat(self, request: ChatRequest) -> ChatResult:
+        payload = self._build_payload(request)
+        headers = self._build_headers()
+
+        data = await self._post(payload, headers)
+        return self._parse(data)
+
+    async def chat_stream(self, request: ChatRequest) -> AsyncIterator[ChatStreamEvent]:
+        payload = self._build_payload(request)
+        payload["stream"] = True
+        headers = self._build_headers()
+
+        async for event in self._post_stream(payload, headers):
+            yield event
+
+    def estimate_cost_micros(self, input_tokens: int, output_tokens: int) -> int:
+        input_cost = (input_tokens / 1_000_000) * self._price_input
+        output_cost = (output_tokens / 1_000_000) * self._price_output
+        return round((input_cost + output_cost) * 1_000_000)
+
+    def _build_headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+            **self._extra_headers,
+        }
+
+    def _build_payload(self, request: ChatRequest) -> dict:
         payload: dict = {
             "model": self._model,
             "max_tokens": request.max_tokens,
@@ -85,28 +135,136 @@ class OpenAICompatibleProvider(ChatProvider):
                 for tool in request.tools
             ]
 
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-            **self._extra_headers,
-        }
+        payload.update(self._extra_payload)
+        return payload
 
+    @_retry_on_transient
+    async def _post(self, payload: dict, headers: dict[str, str]) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
-            response = await client.post(
-                f"{self._base_url}/chat/completions", json=payload, headers=headers
+            response = await client.post(f"{self._base_url}/chat/completions", json=payload, headers=headers)
+
+        self._raise_for_status(response.status_code, response.text)
+        return response.json()
+
+    async def _post_stream(self, payload: dict, headers: dict[str, str]) -> AsyncIterator[ChatStreamEvent]:
+        # `tenacity.retry` no envuelve generadores async (llamar la funcion no
+        # ejecuta nada hasta iterarla, asi que no hay excepcion que atrapar):
+        # el backoff exponencial se hace a mano aca, con los mismos parametros
+        # que `_retry_on_transient` (multiplier=1, min=2, max=10, 4 intentos).
+        # Solo reintenta si el fallo ocurre ANTES de emitir el primer delta:
+        # una vez que el cliente ya recibio texto, reintentar duplicaria esos
+        # tokens en vez de completarlos.
+        max_attempts = 4
+        for attempt in range(1, max_attempts + 1):
+            started_streaming = False
+            try:
+                async with (
+                    httpx.AsyncClient(timeout=self._timeout) as client,
+                    client.stream(
+                        "POST", f"{self._base_url}/chat/completions", json=payload, headers=headers
+                    ) as response,
+                ):
+                    if response.status_code >= 400:
+                        body = await response.aread()
+                        self._raise_for_status(response.status_code, body.decode(errors="replace"))
+
+                    async for event in self._consume_sse(response):
+                        started_streaming = True
+                        yield event
+                return
+            except AiProviderRetryableError:
+                if started_streaming or attempt == max_attempts:
+                    raise
+                await asyncio.sleep(min(10, max(2, 2 ** (attempt - 1))))
+
+    def _raise_for_status(self, status_code: int, body: str) -> None:
+        if status_code < 400:
+            return
+
+        message = f"{self._provider_name} respondio {status_code}: {body}"
+        if status_code in _RETRYABLE_STATUS:
+            raise AiProviderRetryableError(message)
+        raise AiProviderError(message)
+
+    async def _consume_sse(self, response: httpx.Response) -> AsyncIterator[ChatStreamEvent]:
+        text_parts: list[str] = []
+        tool_call_acc: dict[int, dict] = {}
+        model_seen = self._model
+        stop_reason: str | None = None
+        usage: dict = {}
+
+        async for line in response.aiter_lines():
+            if not line or not line.startswith("data:"):
+                continue
+
+            raw = line[len("data:") :].strip()
+            if raw == "[DONE]":
+                break
+
+            try:
+                chunk = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            model_seen = chunk.get("model", model_seen)
+            if chunk.get("usage"):
+                usage = chunk["usage"]
+
+            choices = chunk.get("choices") or []
+            if not choices:
+                continue
+
+            choice = choices[0]
+            stop_reason = choice.get("finish_reason") or stop_reason
+            delta = choice.get("delta") or {}
+
+            content = delta.get("content")
+            if content:
+                text_parts.append(content)
+                yield ChatStreamEvent(delta=content)
+
+            for tc in delta.get("tool_calls") or []:
+                index = tc.get("index", 0)
+                acc = tool_call_acc.setdefault(index, {"id": None, "name": "", "arguments": ""})
+                if tc.get("id"):
+                    acc["id"] = tc["id"]
+                function = tc.get("function") or {}
+                if function.get("name"):
+                    acc["name"] += function["name"]
+                if function.get("arguments"):
+                    acc["arguments"] += function["arguments"]
+
+        tool_calls = self._decode_tool_calls(tool_call_acc)
+        cost = usage.get("cost")
+
+        result = ChatResult(
+            text="".join(text_parts) or None,
+            tool_calls=tool_calls,
+            input_tokens=int(usage.get("prompt_tokens", 0)),
+            output_tokens=int(usage.get("completion_tokens", 0)),
+            model=str(model_seen),
+            stop_reason=stop_reason,
+            cached_tokens=int((usage.get("prompt_tokens_details") or {}).get("cached_tokens", 0)),
+            cost_micros=round(float(cost) * 1_000_000) if cost is not None else None,
+        )
+        yield ChatStreamEvent(done=True, result=result)
+
+    def _decode_tool_calls(self, tool_call_acc: dict[int, dict]) -> list[ToolCall]:
+        tool_calls: list[ToolCall] = []
+        for index in sorted(tool_call_acc):
+            acc = tool_call_acc[index]
+            try:
+                arguments = json.loads(acc["arguments"]) if acc["arguments"] else {}
+            except json.JSONDecodeError:
+                arguments = {}
+            tool_calls.append(
+                ToolCall(
+                    id=acc["id"] or f"call_{index}",
+                    name=acc["name"],
+                    arguments=arguments if isinstance(arguments, dict) else {},
+                )
             )
-
-        if response.status_code >= 400:
-            raise AiProviderError(
-                f"{self._provider_name} respondio {response.status_code}: {response.text}"
-            )
-
-        return self._parse(response.json())
-
-    def estimate_cost_micros(self, input_tokens: int, output_tokens: int) -> int:
-        input_cost = (input_tokens / 1_000_000) * self._price_input
-        output_cost = (output_tokens / 1_000_000) * self._price_output
-        return round((input_cost + output_cost) * 1_000_000)
+        return tool_calls
 
     def _build_messages(self, request: ChatRequest) -> list[dict]:
         messages: list[dict] = [{"role": "system", "content": request.system}]

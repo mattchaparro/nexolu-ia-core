@@ -8,7 +8,15 @@ from fastapi import FastAPI
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.staticfiles import StaticFiles
 
-from nexolu_ia_core.api.v1 import chat, completions, conversations, drafts, health, usage
+from nexolu_ia_core.api.v1 import (
+    admin_apps,
+    chat,
+    completions,
+    conversations,
+    drafts,
+    health,
+    usage,
+)
 from nexolu_ia_core.config import get_settings
 from nexolu_ia_core.core.memory.db import init_models
 from nexolu_ia_core.core.telemetry.logging import configure_logging
@@ -45,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(conversations.router)
     app.include_router(drafts.router)
     app.include_router(usage.router)
+    app.include_router(admin_apps.router)
 
     # La API que el Core EXPONE ya tiene Swagger autogenerado por FastAPI en
     # /docs. Esto es lo complementario: el contrato que una app cliente debe

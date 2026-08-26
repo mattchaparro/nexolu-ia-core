@@ -109,12 +109,100 @@ async def test_empty_tool_arguments_serialize_as_json_object(httpx_mock):
     assert assistant_message["tool_calls"][0]["function"]["arguments"] == "{}"
 
 
-async def test_http_error_raises_provider_error(httpx_mock):
+async def test_client_error_raises_immediately_without_retrying(httpx_mock):
+    """400/401/403/404 son errores de cliente: reintentarlos no cambia el
+    resultado, solo demora el error (ver AiProviderRetryableError)."""
     provider = OpenRouterProvider(make_settings())
-    httpx_mock.add_response(status_code=500, text="boom")
+    httpx_mock.add_response(status_code=400, text="bad request")
 
     with pytest.raises(AiProviderError):
         await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    assert len(httpx_mock.get_requests()) == 1
+
+
+async def test_retryable_status_retries_with_backoff_then_succeeds(httpx_mock):
+    """429/5xx son transitorios: se reintentan con backoff exponencial
+    (tenacity) antes de rendirse."""
+    provider = OpenRouterProvider(make_settings())
+    httpx_mock.add_response(status_code=429, text="rate limited")
+    httpx_mock.add_response(
+        json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}}
+    )
+
+    result = await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    assert result.text == "ok"
+    assert len(httpx_mock.get_requests()) == 2
+
+
+async def test_retryable_status_gives_up_after_max_attempts(httpx_mock):
+    provider = OpenRouterProvider(make_settings())
+    for _ in range(4):
+        httpx_mock.add_response(status_code=503, text="unavailable")
+
+    with pytest.raises(AiProviderError):
+        await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    assert len(httpx_mock.get_requests()) == 4
+
+
+async def test_app_site_url_and_site_name_override_the_default_headers(httpx_mock):
+    """Cada app registrada puede declarar su propio site_url/site_name (ver
+    AppRegistration): OpenRouter los usa para distinguir su trafico en el
+    dashboard aunque compartan API key."""
+    provider = OpenRouterProvider(
+        make_settings(),
+        site_url_override="https://pos.nexolu.co",
+        site_name_override="Nexolu POS",
+    )
+    httpx_mock.add_response(
+        json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}}
+    )
+
+    await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    request = httpx_mock.get_requests()[0]
+    assert request.headers["HTTP-Referer"] == "https://pos.nexolu.co"
+    assert request.headers["X-Title"] == "Nexolu POS"
+
+
+async def test_provider_preferences_are_injected_into_the_payload(httpx_mock):
+    provider = OpenRouterProvider(
+        make_settings(),
+        provider_preferences={"order": ["Anthropic", "OpenAI"], "allow_fallbacks": True, "data_collection": "deny"},
+    )
+    httpx_mock.add_response(
+        json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}}
+    )
+
+    await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    request = httpx_mock.get_requests()[0]
+    body = json.loads(request.content)
+    assert body["provider"] == {"order": ["Anthropic", "OpenAI"], "allow_fallbacks": True, "data_collection": "deny"}
+
+
+async def test_chat_stream_yields_text_deltas_and_a_final_result(httpx_mock):
+    provider = OpenRouterProvider(make_settings())
+    sse_body = (
+        b'data: {"model":"test/model","choices":[{"delta":{"content":"Hola"},"finish_reason":null}]}\n\n'
+        b'data: {"model":"test/model","choices":[{"delta":{"content":" mundo"},"finish_reason":"stop"}],'
+        b'"usage":{"prompt_tokens":10,"completion_tokens":2}}\n\n'
+        b'data: [DONE]\n\n'
+    )
+    httpx_mock.add_response(content=sse_body, headers={"Content-Type": "text/event-stream"})
+
+    events = [event async for event in provider.chat_stream(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))]
+
+    deltas = [e.delta for e in events if e.delta]
+    assert deltas == ["Hola", " mundo"]
+
+    final = events[-1]
+    assert final.done is True
+    assert final.result.text == "Hola mundo"
+    assert final.result.input_tokens == 10
+    assert final.result.output_tokens == 2
 
 
 async def test_api_key_override_is_used_instead_of_the_global_settings_key(httpx_mock):

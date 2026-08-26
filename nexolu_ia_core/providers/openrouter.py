@@ -15,7 +15,13 @@ from nexolu_ia_core.providers.openai_compatible import OpenAICompatibleProvider
 
 class OpenRouterProvider(OpenAICompatibleProvider):
     def __init__(
-        self, settings: Settings, model_override: str | None = None, api_key_override: str | None = None
+        self,
+        settings: Settings,
+        model_override: str | None = None,
+        api_key_override: str | None = None,
+        site_url_override: str | None = None,
+        site_name_override: str | None = None,
+        provider_preferences: dict | None = None,
     ) -> None:
         super().__init__(
             provider_name="openrouter",
@@ -30,9 +36,17 @@ class OpenRouterProvider(OpenAICompatibleProvider):
             price_output_per_mtok=settings.openrouter_price_output_per_mtok,
             timeout_seconds=settings.ai_timeout_seconds,
             fallback_models=settings.openrouter_fallback_models_list,
-            # OpenRouter identifica la app que origina el trafico con estos headers.
+            # OpenRouter identifica la app que origina el trafico con estos
+            # headers. Si la app registrada declaro su propio site_url/
+            # site_name (ver AppRegistration), se usan esos en vez del
+            # default global -- asi el dashboard de OpenRouter distingue
+            # trafico del POS del de EasyTickets aunque compartan API key.
             extra_headers={
-                "HTTP-Referer": settings.openrouter_referer,
-                "X-Title": settings.openrouter_title,
+                "HTTP-Referer": site_url_override or settings.openrouter_referer,
+                "X-Title": site_name_override or settings.openrouter_title,
             },
+            # Ruteo avanzado (order, allow_fallbacks, data_collection...)
+            # declarado por la app en AppRegistration.provider_preferences.
+            # Ver docs de OpenRouter: https://openrouter.ai/docs/quickstart
+            extra_payload={"provider": provider_preferences} if provider_preferences else None,
         )

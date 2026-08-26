@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 
 from nexolu_ia_core.core.memory.db import get_engine, get_sessionmaker, init_models
 from nexolu_ia_core.core.memory.repository import ConversationRepository
+from tests.conftest import seed_pos_app
 
 HEADERS = {"Authorization": "Bearer dev-pos-key"}
 CONTEXT = {
@@ -22,6 +23,7 @@ CONTEXT = {
 @pytest.fixture
 async def client():
     await init_models()
+    await seed_pos_app()
     from nexolu_ia_core.main import create_app
 
     transport = ASGITransport(app=create_app())
@@ -48,6 +50,24 @@ async def test_chat_rejects_unknown_api_key(client):
         "/v1/chat",
         json={"agent": "cajero", "message": "hola", "context": CONTEXT},
         headers={"Authorization": "Bearer no-existe"},
+    )
+    assert response.status_code == 401
+
+
+async def test_chat_rejects_an_inactive_app(client):
+    from nexolu_ia_core.core.auth.repository import AppRegistrationRepository
+
+    async with get_sessionmaker()() as session:
+        repo = AppRegistrationRepository(session)
+        await repo.create(app_id="tickets", api_key="dev-tickets-key", base_url="http://tickets.test")
+        registration = await repo.get_by_app_id("tickets")
+        await repo.update(registration, is_active=False)
+        await session.commit()
+
+    response = await client.post(
+        "/v1/chat",
+        json={"agent": "vendedor", "message": "hola", "context": CONTEXT},
+        headers={"Authorization": "Bearer dev-tickets-key"},
     )
     assert response.status_code == 401
 
@@ -96,6 +116,39 @@ async def test_chat_without_business_id_falls_back_to_the_app_id(client, httpx_m
         headers=HEADERS,
     )
     assert history.status_code == 200
+
+
+async def test_chat_stream_emits_sse_events_and_persists_the_conversation(client, httpx_mock):
+    httpx_mock.add_response(url="http://pos.test/api/ai/tools/catalog", json={"tools": {}})
+
+    async with client.stream(
+        "POST",
+        "/v1/chat/stream",
+        json={"agent": "cajero", "message": "hola, como va todo?", "context": CONTEXT},
+        headers=HEADERS,
+    ) as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        raw_events = [line async for line in response.aiter_lines() if line.startswith("data: ")]
+
+    import json as json_module
+
+    events = [json_module.loads(line[len("data: "):]) for line in raw_events]
+    assert any(e.get("delta") for e in events)
+
+    final = events[-1]
+    assert final["done"] is True
+    assert final["conversation_id"]
+    assert "[null] recibido" in final["text"]
+
+    history = await client.get(
+        f"/v1/conversations/{final['conversation_id']}",
+        params={"business_id": "b1", "user_id": "u1"},
+        headers=HEADERS,
+    )
+    assert history.status_code == 200
+    roles = [m["role"] for m in history.json()["messages"]]
+    assert roles == ["user", "assistant"]
 
 
 async def test_chat_unknown_agent_returns_404(client, httpx_mock):

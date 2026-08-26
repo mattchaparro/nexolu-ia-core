@@ -2,36 +2,19 @@
 
 Todo lo que varia entre entornos (desarrollo, staging, produccion) vive aqui,
 leido de variables de entorno. Nada de esto es logica de negocio de ningun
-producto: son credenciales de proveedores de IA y el registro de que
-aplicaciones (POS, Spa, EasyTickets...) pueden llamar al Core.
+producto: son credenciales globales de proveedores de IA y limites comunes.
+
+El registro de que aplicaciones (POS, Spa, EasyTickets...) pueden llamar al
+Core vive en BD (`core.memory.entities.AppRegistration`), administrado via
+`/v1/admin/apps` -- no en una env var, para poder rotar/crear apps sin
+redeploy. Ver `core/auth/apps.py` y `core/auth/repository.py`.
 """
 from __future__ import annotations
 
-import json
 from functools import lru_cache
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-
-
-class AppRegistration(BaseSettings):
-    """Una aplicacion cliente del Core (POS, Spa, EasyTickets...).
-
-    provider/model/provider_api_key son opcionales: una app que no los
-    declara usa el default global (DEFAULT_PROVIDER/DEFAULT_MODEL y la API
-    key global de ese proveedor). Declararlos es lo que permite que, por
-    ejemplo, el POS use un modelo barato con su propio workspace de
-    OpenRouter y el Spa use uno mas potente con el suyo - estadisticas,
-    costos y acceso a modelos quedan segregados por app en el dashboard del
-    proveedor, no mezclados bajo una sola cuenta. Ver ModelRouter.resolve().
-    """
-
-    api_key: str
-    base_url: str
-    name: str = ""
-    provider: str | None = None
-    model: str | None = None
-    provider_api_key: str | None = None
 
 
 class Settings(BaseSettings):
@@ -81,8 +64,10 @@ class Settings(BaseSettings):
     ai_max_output_tokens: int = 1500
     ai_history_turns: int = 20
 
-    # Registro de apps cliente, como JSON crudo (parseado en `apps`).
-    nexolu_apps_json: str = "{}"
+    # Clave maestra de cifrado (Fernet) para api_key/provider_api_key de las
+    # apps registradas en BD (ver core/security/crypto.py). Nunca se guarda
+    # en la base; sin ella, leer o escribir un AppRegistration falla fuerte.
+    ia_core_master_key: str = ""
 
     # Cuanto tiempo confiar en el catalogo de permisos/features de una app
     # (ver core/tools/remote_catalog.py) antes de volver a consultarlo. Un
@@ -95,16 +80,12 @@ class Settings(BaseSettings):
     # apps. Nunca se le entrega a una app integradora - esa usa su propia
     # api_key para ver solo su propio gasto en GET /v1/usage/*. Vacia por
     # defecto: sin ella, /v1/platform/usage responde 503 en vez de quedar
-    # accesible sin proteccion. Prefijo NEXOLU_ (no per-app) a proposito,
-    # igual que NEXOLU_APPS_JSON.
+    # accesible sin proteccion. Prefijo NEXOLU_ (no per-app) a proposito: es
+    # transversal a todas las apps, igual que el acceso de administracion de
+    # /v1/admin/apps (ver core/auth/dependencies.py::require_platform_access).
     nexolu_platform_api_key: str = ""
 
     log_level: str = "INFO"
-
-    @property
-    def apps(self) -> dict[str, AppRegistration]:
-        raw = json.loads(self.nexolu_apps_json or "{}")
-        return {app_id: AppRegistration(**data) for app_id, data in raw.items()}
 
     @property
     def openrouter_fallback_models_list(self) -> list[str]:

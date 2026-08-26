@@ -26,9 +26,27 @@ class ProviderRegistry:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
 
-    def resolve(self, name: str, model_override: str | None = None, api_key_override: str | None = None) -> ChatProvider:
+    def resolve(
+        self,
+        name: str,
+        model_override: str | None = None,
+        api_key_override: str | None = None,
+        site_url_override: str | None = None,
+        site_name_override: str | None = None,
+        provider_preferences: dict | None = None,
+    ) -> ChatProvider:
         builders = {
-            "openrouter": lambda: OpenRouterProvider(self._settings, model_override, api_key_override),
+            # site_url/site_name/provider_preferences son especificos del
+            # ruteo de OpenRouter (headers HTTP-Referer/X-Title y el campo
+            # `provider` del payload) -- el resto de proveedores no los usa.
+            "openrouter": lambda: OpenRouterProvider(
+                self._settings,
+                model_override,
+                api_key_override,
+                site_url_override,
+                site_name_override,
+                provider_preferences,
+            ),
             "openai": lambda: OpenAIProvider(self._settings, model_override, api_key_override),
             "deepseek": lambda: DeepSeekProvider(self._settings, model_override, api_key_override),
             "anthropic": lambda: AnthropicProvider(self._settings, model_override, api_key_override),

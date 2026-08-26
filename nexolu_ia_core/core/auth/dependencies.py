@@ -7,26 +7,31 @@ APLICACION que llama (POS, Spa, EasyTickets), via API key en el header
 completa ya esta autenticada por la API key de la app.
 
 Hay un segundo nivel de auth, separado: la API key de PLATAFORMA (Nexolu,
-no una app individual), que solo protege endpoints de reporte cross-app
-(ver `require_platform_access` y GET /v1/platform/usage). Ninguna app
-integradora la conoce.
+no una app individual), que protege endpoints de reporte cross-app y de
+administracion de apps (ver `require_platform_access`, GET /v1/platform/usage
+y /v1/admin/apps). Ninguna app integradora la conoce.
 """
 from __future__ import annotations
 
 import hmac
 
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from nexolu_ia_core.config import get_settings
-from nexolu_ia_core.core.auth.apps import AppIdentity, get_app_registry
+from nexolu_ia_core.core.auth.apps import AppIdentity, resolve_by_api_key
+from nexolu_ia_core.core.memory.db import get_session
 
 
-async def get_current_app(authorization: str | None = Header(default=None)) -> AppIdentity:
+async def get_current_app(
+    authorization: str | None = Header(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> AppIdentity:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Falta el header Authorization.")
 
     api_key = authorization.split(" ", 1)[1].strip()
-    app = get_app_registry().resolve_by_api_key(api_key)
+    app = await resolve_by_api_key(session, api_key)
 
     if app is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="API key invalida.")

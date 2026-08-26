@@ -94,6 +94,20 @@ class ChatResult(BaseModel):
         return self.cached_tokens / self.input_tokens
 
 
+class ChatStreamEvent(BaseModel):
+    """Un fragmento de `ChatProvider.chat_stream()`.
+
+    `delta` llega repetidas veces conforme el proveedor manda texto; el
+    ultimo evento trae `done=True` y `result` con el `ChatResult` completo
+    (tool_calls acumuladas, usage, costo) -- equivalente a lo que `chat()`
+    devuelve de una sola vez.
+    """
+
+    delta: str | None = None
+    done: bool = False
+    result: ChatResult | None = None
+
+
 class TenantContext(BaseModel):
     """Lo que la aplicacion llamante afirma sobre quien esta hablando.
 
@@ -152,6 +166,21 @@ class ChatMessageOut(BaseModel):
     drafts: list[DraftOut] = Field(default_factory=list)
 
 
+class ChatStreamChunk(BaseModel):
+    """Un evento de POST /v1/chat/stream, serializado como `data: <json>` de
+    SSE. `delta` llega repetidas veces con fragmentos de texto; el ultimo
+    evento trae `done=True` con el resto de metadata (equivalente a
+    `ChatMessageOut`, pero `text` ahi es el texto COMPLETO acumulado, util
+    para un cliente que se conecto tarde o quiere el valor final de una)."""
+
+    delta: str | None = None
+    done: bool = False
+    conversation_id: str | None = None
+    text: str | None = None
+    tools_used: list[str] = Field(default_factory=list)
+    drafts: list[DraftOut] = Field(default_factory=list)
+
+
 class CompletionIn(BaseModel):
     """Payload de entrada de POST /v1/completions.
 
@@ -175,3 +204,56 @@ class CompletionOut(BaseModel):
     output_tokens: int = 0
     model: str = ""
     cost_micros: int | None = None
+
+
+class AppRegistrationIn(BaseModel):
+    """Payload de POST /v1/admin/apps."""
+
+    app_id: str
+    name: str = ""
+    base_url: str
+    site_url: str | None = None
+    site_name: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    provider_api_key: str | None = None
+    provider_preferences: dict[str, Any] = Field(default_factory=dict)
+
+
+class AppRegistrationPatch(BaseModel):
+    """Payload de PATCH /v1/admin/apps/{id}. Todo opcional: solo se
+    actualiza lo que venga distinto de None."""
+
+    name: str | None = None
+    base_url: str | None = None
+    site_url: str | None = None
+    site_name: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    provider_api_key: str | None = None
+    provider_preferences: dict[str, Any] | None = None
+    is_active: bool | None = None
+
+
+class AppRegistrationOut(BaseModel):
+    """Una app tal como la ve el admin -- la key SIEMPRE enmascarada, nunca
+    se vuelve a mostrar en claro despues de crearla/regenerarla."""
+
+    id: str
+    app_id: str
+    name: str
+    api_key_masked: str
+    is_active: bool
+    base_url: str
+    site_url: str | None = None
+    site_name: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    has_provider_api_key: bool = False
+    provider_preferences: dict[str, Any] = Field(default_factory=dict)
+
+
+class AppRegistrationCreatedOut(AppRegistrationOut):
+    """Solo la respuesta de creacion/regeneracion trae la key en claro."""
+
+    api_key: str

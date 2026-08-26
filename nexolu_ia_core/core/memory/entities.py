@@ -14,6 +14,7 @@ from datetime import datetime
 
 from sqlalchemy import (
     JSON,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -26,10 +27,61 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from nexolu_ia_core.core.memory.db import Base
+from nexolu_ia_core.core.security.api_keys import generate_api_key, hash_api_key
+from nexolu_ia_core.core.security.crypto import EncryptedString
 
 
 def _uuid() -> str:
     return uuid.uuid4().hex
+
+
+class AppRegistration(Base):
+    """Aplicacion cliente autorizada a consumir el Core (POS, Spa,
+    EasyTickets...). Unica fuente de verdad de identidad de apps -- ver
+    `core/auth/apps.py` y `core/auth/repository.py`.
+
+    `api_key` se guarda cifrada (no en texto plano) porque el Core la
+    reenvia tal cual como `Authorization: Bearer` cuando llama de vuelta al
+    backend de la app para ejecutar herramientas (ver
+    `core/tools/dispatch_client.py`); `api_key_hash` es lo que se usa para
+    autenticar la llamada ENTRANTE, en tiempo constante, sin tener que
+    descifrar nada en el camino caliente (ver `core/auth/apps.py`). Mismo
+    patron que `Integration` en nexolu-payments-core.
+    """
+
+    __tablename__ = "app_registrations"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    app_id: Mapped[str] = mapped_column(String(64), unique=True)
+    name: Mapped[str] = mapped_column(String(128), default="")
+    api_key: Mapped[str] = mapped_column(EncryptedString(255), nullable=False)
+    api_key_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    base_url: Mapped[str] = mapped_column(String(512))
+    site_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    site_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # provider/model/provider_api_key son opcionales: una app que no los
+    # declara usa el default global (DEFAULT_PROVIDER/DEFAULT_MODEL y la API
+    # key global de ese proveedor). Declararlos permite que, por ejemplo, el
+    # POS use un modelo barato con su propio workspace de OpenRouter y el
+    # Spa use uno mas potente con el suyo. Ver ModelRouter.resolve().
+    provider: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    provider_api_key: Mapped[str | None] = mapped_column(EncryptedString(255), nullable=True)
+    # Configuracion de ruteo avanzado de OpenRouter (order, allow_fallbacks,
+    # data_collection...), inyectada tal cual en el campo `provider` del
+    # payload de chat/completions. Ver providers/openrouter.py.
+    provider_preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+    def __init__(self, **kwargs):
+        api_key = kwargs.pop("api_key", None) or generate_api_key()
+        self.api_key = api_key
+        self.api_key_hash = hash_api_key(api_key)
+        super().__init__(**kwargs)
 
 
 class Conversation(Base):

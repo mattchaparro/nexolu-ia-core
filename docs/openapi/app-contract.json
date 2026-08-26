@@ -3,7 +3,7 @@
   "info": {
     "title": "Contrato de integracion Nexolu IA Core → aplicacion cliente",
     "version": "1.0.0",
-    "description": "Estos DOS endpoints los implementa la aplicacion que se integra (POS, Spa, EasyTickets...), NO el Nexulu IA Core. Este documento es la especificacion formal de lo que el Core espera poder llamar en `base_url` (ver `NEXOLU_APPS_JSON` en `.env.example`). Ver docs/APP_INTEGRATION.md para la guia paso a paso completa, incluyendo lo que la app debe CONSUMIR del Core (esos endpoints tienen su propia documentacion Swagger, autogenerada, en `/docs` de este servicio)."
+    "description": "Estos DOS endpoints los implementa la aplicacion que se integra (POS, Spa, EasyTickets...), NO el Nexulu IA Core. Este documento es la especificacion formal de lo que el Core espera poder llamar en `base_url` (el que se declaro al registrar la app con `POST /v1/admin/apps`). Ver docs/APP_INTEGRATION.md para la guia paso a paso completa, incluyendo lo que la app debe CONSUMIR del Core (esos endpoints tienen su propia documentacion Swagger, autogenerada, en `/docs` de este servicio)."
   },
   "servers": [
     { "url": "{base_url}", "variables": { "base_url": { "default": "https://tu-app.example.com" } } }
@@ -13,7 +13,7 @@
       "AppApiKey": {
         "type": "http",
         "scheme": "bearer",
-        "description": "La misma API key configurada en NEXOLU_APPS_JSON.<app_id>.api_key del lado del Core. Estatica, por aplicacion, nunca por usuario final: la app confia en que el Core ya autentico la llamada completa."
+        "description": "La misma API key que devolvio el Core al registrar la app con POST /v1/admin/apps. Estatica, por aplicacion, nunca por usuario final: la app confia en que el Core ya autentico la llamada completa."
       }
     },
     "schemas": {

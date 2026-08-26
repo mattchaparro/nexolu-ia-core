@@ -8,11 +8,21 @@ bloques dentro de `content`, no como campos planos. Por eso vive aparte de
 from __future__ import annotations
 
 import httpx
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from nexolu_ia_core.config import Settings
 from nexolu_ia_core.core.schemas import ChatRequest, ChatResult, Role, ToolCall
 from nexolu_ia_core.providers.base import ChatProvider
-from nexolu_ia_core.providers.exceptions import AiProviderError
+from nexolu_ia_core.providers.exceptions import AiProviderError, AiProviderRetryableError
+
+_RETRYABLE_STATUS = {429, 500, 502, 503, 504}
+
+_retry_on_transient = retry(
+    retry=retry_if_exception_type(AiProviderRetryableError),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(4),
+    reraise=True,
+)
 
 
 class AnthropicProvider(ChatProvider):
@@ -60,13 +70,21 @@ class AnthropicProvider(ChatProvider):
             "Content-Type": "application/json",
         }
 
+        data = await self._post(payload, headers)
+        return self._parse(data)
+
+    @_retry_on_transient
+    async def _post(self, payload: dict, headers: dict[str, str]) -> dict:
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             response = await client.post(f"{self._base_url}/v1/messages", json=payload, headers=headers)
 
         if response.status_code >= 400:
-            raise AiProviderError(f"Anthropic respondio {response.status_code}: {response.text}")
+            message = f"Anthropic respondio {response.status_code}: {response.text}"
+            if response.status_code in _RETRYABLE_STATUS:
+                raise AiProviderRetryableError(message)
+            raise AiProviderError(message)
 
-        return self._parse(response.json())
+        return response.json()
 
     def estimate_cost_micros(self, input_tokens: int, output_tokens: int) -> int:
         input_cost = (input_tokens / 1_000_000) * self._price_input

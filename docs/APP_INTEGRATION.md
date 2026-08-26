@@ -46,9 +46,10 @@ Responde `{"data": {...}}` (200) o `{"error": "..."}` (4xx/5xx).
 Checklist de lo que tu implementacion debe hacer, en orden:
 
 1. **Autenticar** el request: `Authorization: Bearer <api_key>` debe coincidir
-   con la que vos mismo configuraste en `NEXOLU_APPS_JSON.<tu_app_id>.api_key`
-   del lado del Core. Nunca uses el sistema de sesion/tokens de usuario para
-   esto - es una API key de aplicacion, estatica, distinta de eso.
+   con la que te devolvio el Core al registrar tu app con
+   `POST /v1/admin/apps` (ver la seccion de administracion mas abajo). Nunca
+   uses el sistema de sesion/tokens de usuario para esto - es una API key de
+   aplicacion, estatica, distinta de eso.
 2. **Resolver el `context`** (`business_id`, `user_id`) contra tu propia base
    de datos. NUNCA confies en el a ciegas solo porque la llamada viene
    autenticada: verifica que el usuario exista, este activo y pertenezca a
@@ -155,22 +156,27 @@ condicionarlo a ningun plan comercial (ver `UsageDaily` en
 Cada app puede tener su propio proveedor, modelo y API key de IA, para que
 las estadisticas y el costo queden segregados por app en el dashboard del
 proveedor (p.ej. un workspace de OpenRouter por app, no uno solo compartido).
-Se declara en `NEXOLU_APPS_JSON`:
+Se declara al crear o actualizar la app con el API de administracion (ver
+seccion 8), `Authorization: Bearer <NEXOLU_PLATFORM_API_KEY>`:
 
-```json
-{
-  "pos": {
-    "api_key": "...", "base_url": "https://pos.nexolu.co", "name": "Nexolu POS",
+```bash
+curl -X PATCH https://ia.nexolu.co/v1/admin/apps/pos \
+  -H "Authorization: Bearer $NEXOLU_PLATFORM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_url": "https://pos.nexolu.co", "site_name": "Nexolu POS",
     "provider": "openrouter", "model": "deepseek/deepseek-chat",
-    "provider_api_key": "sk-or-v1-<workspace del POS>"
-  },
-  "spa": {
-    "api_key": "...", "base_url": "https://spa.nexolu.co", "name": "Nexolu Spa",
-    "provider": "openrouter", "model": "anthropic/claude-opus-4-8",
-    "provider_api_key": "sk-or-v1-<workspace del Spa>"
-  }
-}
+    "provider_api_key": "sk-or-v1-<workspace del POS>",
+    "provider_preferences": {"order": ["DeepSeek"], "allow_fallbacks": true}
+  }'
 ```
+
+`site_url`/`site_name` viajan como los headers `HTTP-Referer`/`X-Title` en
+cada llamada a OpenRouter (asi el dashboard distingue el trafico de cada app
+aunque compartan API key global), y `provider_preferences` se inyecta tal
+cual en el campo `provider` del payload de `chat/completions` -- ver
+[la documentacion de OpenRouter](https://openrouter.ai/docs/quickstart) para
+las claves soportadas (`order`, `allow_fallbacks`, `data_collection`, etc).
 
 Precedencia (mas especifico gana): override de agente puntual
 (`AgentDefinition.provider`/`.model` en `apps/<app>/agents.py`) > override de
@@ -190,8 +196,11 @@ soporta que cada app use uno distinto, no los crea.
    mismos nombres que va a implementar tu `/api/ai/tools/invoke`) y
    `agents.py` (`AgentDefinition` por cada personalidad del chat).
 2. Agregar una rama en `apps/registry.py::get_app_bundle()`.
-3. Agregar tu app a `NEXOLU_APPS_JSON` (API key propia, `base_url`, y
-   opcionalmente `provider`/`model`/`provider_api_key` - ver seccion 7).
+3. Darla de alta con `POST /v1/admin/apps` (`base_url`, y opcionalmente
+   `site_url`/`site_name`/`provider`/`model`/`provider_api_key`/
+   `provider_preferences` - ver seccion 7). Guardar la `api_key` que devuelve:
+   no se vuelve a mostrar (aunque se puede rotar con
+   `POST /v1/admin/apps/{app_id}/regenerate-key`).
 4. Del lado de tu app: implementar `POST /api/ai/tools/invoke` (obligatorio)
    y `GET /api/ai/tools/catalog` (recomendado) - ver seccion 2.
 5. Del lado de tu app: un endpoint que reciba el mensaje del usuario, arme el

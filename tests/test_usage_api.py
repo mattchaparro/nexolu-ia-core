@@ -10,6 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from nexolu_ia_core.config import get_settings
 from nexolu_ia_core.core.memory.db import get_engine, get_sessionmaker, init_models
 from nexolu_ia_core.core.memory.repository import ConversationRepository
+from tests.conftest import seed_pos_app
 
 HEADERS = {"Authorization": "Bearer dev-pos-key"}
 
@@ -17,6 +18,7 @@ HEADERS = {"Authorization": "Bearer dev-pos-key"}
 @pytest.fixture
 async def client():
     await init_models()
+    await seed_pos_app()
     from nexolu_ia_core.main import create_app
 
     transport = ASGITransport(app=create_app())

@@ -55,7 +55,7 @@ alembic/              Migraciones de esquema
 ```bash
 uv venv .venv && source .venv/bin/activate
 uv pip install -e ".[dev]"
-cp .env.example .env   # y completar al menos NEXOLU_APPS_JSON
+cp .env.example .env   # y completar al menos IA_CORE_MASTER_KEY y NEXOLU_PLATFORM_API_KEY
 
 alembic upgrade head    # o dejar que arranque solo con SQLite (ver main.py)
 uvicorn nexolu_ia_core.main:app --reload
@@ -65,6 +65,20 @@ Con `DEFAULT_PROVIDER=null` (el valor por defecto) el servicio responde con
 el proveedor determinista `NullProvider`, sin gastar tokens reales -- util
 para probar el flujo completo (auth, historial, borradores) antes de cargar
 API keys.
+
+Las apps cliente (POS, Spa, EasyTickets...) viven en BD, no en env vars: se
+dan de alta con el API de administracion (ver `.env.example`):
+
+```bash
+curl -X POST http://localhost:8000/v1/admin/apps \
+  -H "Authorization: Bearer $NEXOLU_PLATFORM_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"app_id": "pos", "name": "Nexolu POS", "base_url": "http://localhost:8001"}'
+```
+
+La respuesta trae la `api_key` de esa app EN CLARO, una sola vez -- guardarla,
+el Core no la vuelve a mostrar (aunque queda cifrada en BD y `POST
+/v1/admin/apps/{app_id}/regenerate-key` puede emitir una nueva si se pierde).
 
 ## Probar el chat
 
@@ -86,9 +100,16 @@ curl -X POST http://localhost:8000/v1/chat \
   }'
 ```
 
-La app se identifica por la API key (`dev-pos-key` en `.env.example`, mapeada
-a `pos` en `NEXOLU_APPS_JSON`), nunca por un campo del body: asi ninguna
-aplicacion puede leer las herramientas de otra.
+La app se identifica por la API key que devolvio `POST /v1/admin/apps` al
+darla de alta (`dev-pos-key` en los ejemplos/tests de este repo), nunca por
+un campo del body: asi ninguna aplicacion puede leer las herramientas de
+otra.
+
+`POST /v1/chat/stream` es el mismo contrato pero responde con Server-Sent
+Events (`text/event-stream`): cada evento es `data: {"delta": "..."}` con un
+fragmento de texto, y el ultimo trae `"done": true` junto con
+`conversation_id`, `tools_used` y `drafts` (igual que la respuesta completa
+de `/v1/chat`).
 
 ## Tests
 
@@ -96,12 +117,13 @@ aplicacion puede leer las herramientas de otra.
 pytest
 ```
 
-37 tests cubren: `ToolGuard` (claves reservadas, coercion de tipos, rangos de
+Los tests cubren: `ToolGuard` (claves reservadas, coercion de tipos, rangos de
 fecha), `ToolRegistry` (filtro por feature/permiso, admin vs empleado),
-`OpenRouterProvider` (payload, parseo, manejo de `arguments` vacios), el
-orquestador completo con un proveedor "scripted" (lectura, escritura ->
-borrador, argumentos invalidos devueltos al modelo, historial entre
-mensajes), y los endpoints HTTP de punta a punta.
+`OpenRouterProvider` (payload, parseo, reintentos con backoff, streaming SSE,
+ruteo dinamico), el orquestador completo con un proveedor "scripted" (lectura,
+escritura -> borrador, argumentos invalidos devueltos al modelo, historial
+entre mensajes, streaming), el CRUD de `/v1/admin/apps`, y los endpoints HTTP
+de punta a punta.
 
 ## Extender el Core
 
@@ -111,8 +133,8 @@ mensajes), y los endpoints HTTP de punta a punta.
   cambia.
 - **Agregar una aplicacion nueva** (CRM...): un paquete `apps/<nombre>/` con
   `tools.py` (`Tool`/`WriteTool`) y `agents.py` (`AgentDefinition`), mas una
-  rama en `apps/registry.get_app_bundle()` y una entrada en
-  `NEXOLU_APPS_JSON`. El Core no cambia.
+  rama en `apps/registry.get_app_bundle()` y darla de alta con
+  `POST /v1/admin/apps`. El Core no cambia.
 - **Agregar una herramienta a una app existente**: una entrada mas en su
   `tools.py`. Si es de escritura, usar `WriteTool` para que pase por
   confirmacion humana.
@@ -135,8 +157,9 @@ Authorization: Bearer <api_key de esa app>
 -> {"data": {...}}  o  {"error": "..."}
 ```
 
-Apuntar `NEXOLU_APPS_JSON.pos.base_url` al POS real es toda la migracion
-necesaria -- no hay que tocar el Core.
+Actualizar el `base_url` de la app `pos` con `PATCH /v1/admin/apps/pos` para
+que apunte al POS real es toda la migracion necesaria -- no hay que tocar el
+Core.
 
 `required_permission`/`required_feature` de cada `Tool` en `apps/pos/tools.py`
 tienen que coincidir EXACTO con los nombres reales de

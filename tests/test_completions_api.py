@@ -6,6 +6,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from nexolu_ia_core.core.memory.db import get_engine, init_models
+from tests.conftest import seed_pos_app
 
 HEADERS = {"Authorization": "Bearer dev-pos-key"}
 CONTEXT = {
@@ -21,6 +22,7 @@ CONTEXT = {
 @pytest.fixture
 async def client():
     await init_models()
+    await seed_pos_app()
     from nexolu_ia_core.main import create_app
 
     transport = ASGITransport(app=create_app())
