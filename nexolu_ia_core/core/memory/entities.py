@@ -17,6 +17,7 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -72,6 +73,10 @@ class AppRegistration(Base):
     # data_collection...), inyectada tal cual en el campo `provider` del
     # payload de chat/completions. Ver providers/openrouter.py.
     provider_preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Solo informativo: el Core no bloquea requests al superarlo, es lo que
+    # alimenta la barra de progreso/alertas del Admin (ver UsageService para
+    # el consumo real). None = sin limite configurado.
+    budget_limit_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
@@ -148,6 +153,11 @@ class ToolInvocationLog(Base):
     status: Mapped[str] = mapped_column(String(16))  # "ok" | "error"
     result_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     latency_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # TenantContext.model_dump() del momento del fallo/exito -- sin esto no
+    # alcanza para reconstruir un reintento fiel (TenantContext exige user_id,
+    # que este log no guardaba en ningun otro campo). Nullable porque los
+    # registros anteriores a esta columna no lo tienen y no son reintentables.
+    context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -9,6 +9,7 @@ Equivalen a `app/Services/Ai/Dto/*.php` en el POS actual.
 """
 from __future__ import annotations
 
+from datetime import datetime
 from enum import Enum
 from typing import Any
 
@@ -218,6 +219,7 @@ class AppRegistrationIn(BaseModel):
     model: str | None = None
     provider_api_key: str | None = None
     provider_preferences: dict[str, Any] = Field(default_factory=dict)
+    budget_limit_usd: float | None = None
 
 
 class AppRegistrationPatch(BaseModel):
@@ -233,6 +235,7 @@ class AppRegistrationPatch(BaseModel):
     provider_api_key: str | None = None
     provider_preferences: dict[str, Any] | None = None
     is_active: bool | None = None
+    budget_limit_usd: float | None = None
 
 
 class AppRegistrationOut(BaseModel):
@@ -251,9 +254,46 @@ class AppRegistrationOut(BaseModel):
     model: str | None = None
     has_provider_api_key: bool = False
     provider_preferences: dict[str, Any] = Field(default_factory=dict)
+    budget_limit_usd: float | None = None
 
 
 class AppRegistrationCreatedOut(AppRegistrationOut):
     """Solo la respuesta de creacion/regeneracion trae la key en claro."""
 
     api_key: str
+
+
+class ToolInvocationLogOut(BaseModel):
+    """Una fila de auditoria de invocacion de herramienta, para el panel
+    administrativo de trazabilidad/reintento (`api/v1/admin_tool_logs.py`)."""
+
+    id: int
+    conversation_id: str
+    app_id: str
+    business_id: str
+    tool_name: str
+    arguments: dict[str, Any]
+    status: str
+    result_summary: str | None = None
+    latency_ms: int | None = None
+    context: dict[str, Any] | None = None
+    created_at: datetime
+
+
+class DraftAdminOut(BaseModel):
+    """Un borrador tal como lo ve el panel administrativo de auditoria
+    (`api/v1/admin_drafts.py`) -- a diferencia del flujo normal de
+    confirm/discard, este no esta acotado a una app/tenant."""
+
+    id: str
+    conversation_id: str
+    app_id: str
+    business_id: str
+    user_id: str
+    draft_type: str
+    tool_name: str
+    status: str
+    payload: dict[str, Any]
+    summary: str
+    created_at: datetime
+    expires_at: datetime | None = None

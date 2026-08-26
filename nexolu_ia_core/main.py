@@ -10,6 +10,8 @@ from fastapi.staticfiles import StaticFiles
 
 from nexolu_ia_core.api.v1 import (
     admin_apps,
+    admin_drafts,
+    admin_tool_logs,
     chat,
     completions,
     conversations,
@@ -54,6 +56,8 @@ def create_app() -> FastAPI:
     app.include_router(drafts.router)
     app.include_router(usage.router)
     app.include_router(admin_apps.router)
+    app.include_router(admin_tool_logs.router)
+    app.include_router(admin_drafts.router)
 
     # La API que el Core EXPONE ya tiene Swagger autogenerado por FastAPI en
     # /docs. Esto es lo complementario: el contrato que una app cliente debe

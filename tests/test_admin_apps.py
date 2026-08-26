@@ -91,6 +91,45 @@ async def test_patch_unknown_app_returns_404(client):
     assert response.status_code == 404
 
 
+async def test_patch_sets_and_clears_the_budget_limit(client):
+    await client.post(
+        "/v1/admin/apps", json={"app_id": "spa", "base_url": "http://spa.test"}, headers=PLATFORM_HEADERS
+    )
+
+    with_budget = await client.patch(
+        "/v1/admin/apps/spa", json={"budget_limit_usd": 50.5}, headers=PLATFORM_HEADERS
+    )
+    assert with_budget.status_code == 200
+    assert with_budget.json()["budget_limit_usd"] == 50.5
+
+    cleared = await client.patch(
+        "/v1/admin/apps/spa", json={"budget_limit_usd": None}, headers=PLATFORM_HEADERS
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["budget_limit_usd"] is None
+
+
+async def test_refresh_tool_catalog_invalidates_the_cache(client):
+    await client.post(
+        "/v1/admin/apps", json={"app_id": "spa", "base_url": "http://spa.test"}, headers=PLATFORM_HEADERS
+    )
+
+    from nexolu_ia_core.core.tools.remote_catalog import get_remote_tool_catalog
+
+    get_remote_tool_catalog()._cache["spa"] = (0.0, {"herramienta": {"required_permission": "x"}})
+
+    response = await client.post("/v1/admin/apps/spa/tool-catalog/refresh", headers=PLATFORM_HEADERS)
+
+    assert response.status_code == 200
+    assert response.json() == {"invalidated": True}
+    assert "spa" not in get_remote_tool_catalog()._cache
+
+
+async def test_refresh_tool_catalog_unknown_app_returns_404(client):
+    response = await client.post("/v1/admin/apps/no-existe/tool-catalog/refresh", headers=PLATFORM_HEADERS)
+    assert response.status_code == 404
+
+
 async def test_regenerate_key_issues_a_new_key_and_invalidates_the_old_one(client):
     create = await client.post(
         "/v1/admin/apps", json={"app_id": "spa", "base_url": "http://spa.test"}, headers=PLATFORM_HEADERS

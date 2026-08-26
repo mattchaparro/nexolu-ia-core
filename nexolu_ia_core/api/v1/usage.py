@@ -127,6 +127,32 @@ async def usage_daily(
     )
 
 
+@router.get(
+    "/admin/usage/daily", response_model=UsageDailyResponse, dependencies=[Depends(require_platform_access)]
+)
+async def platform_usage_daily(
+    app_id: str | None = Query(default=None, description="Filtra a una app; sin filtro, suma todas las apps."),
+    date_from: date | None = Query(default=None),
+    date_to: date | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> UsageDailyResponse:
+    """Serie diaria para el panel administrativo de metricas (BFF/Admin) --
+    a diferencia de `/usage/daily`, esta cruza negocios (y apps, si no se
+    filtra una) porque el BFF solo tiene la key de plataforma, nunca la de
+    una app puntual."""
+    start, end = _default_range(date_from, date_to)
+    service = UsageService(ConversationRepository(session))
+
+    points = await service.platform_daily_series(app_id=app_id, date_from=start, date_to=end)
+
+    return UsageDailyResponse(
+        date_from=start,
+        date_to=end,
+        business_id=None,
+        days=[UsageDailyPointOut(date=p.date, **p.summary.__dict__) for p in points],
+    )
+
+
 @router.get("/platform/usage", response_model=PlatformUsageResponse, dependencies=[Depends(require_platform_access)])
 async def platform_usage(
     app_id: str | None = Query(default=None, description="Filtra a una app: agrupa por negocio DENTRO de esa app en vez de por app."),

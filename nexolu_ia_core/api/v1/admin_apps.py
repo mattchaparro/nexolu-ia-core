@@ -24,6 +24,7 @@ from nexolu_ia_core.core.schemas import (
     AppRegistrationOut,
     AppRegistrationPatch,
 )
+from nexolu_ia_core.core.tools.remote_catalog import get_remote_tool_catalog
 
 router = APIRouter(
     prefix="/v1/admin/apps",
@@ -52,6 +53,7 @@ def _to_out(registration: AppRegistration) -> AppRegistrationOut:
         model=registration.model,
         has_provider_api_key=bool(registration.provider_api_key),
         provider_preferences=registration.provider_preferences or {},
+        budget_limit_usd=registration.budget_limit_usd,
     )
 
 
@@ -108,3 +110,18 @@ async def regenerate_key(app_id: str, session: AsyncSession = Depends(get_sessio
     registration = await repo.regenerate_key(registration)
     await session.commit()
     return _to_created_out(registration)
+
+
+@router.post("/{app_id}/tool-catalog/refresh")
+async def refresh_tool_catalog(app_id: str, session: AsyncSession = Depends(get_session)) -> dict[str, bool]:
+    """Fuerza que la proxima consulta de esta app repueble su catalogo remoto
+    de herramientas en vez de servir la copia cacheada (TTL de hasta 24h, ver
+    `RemoteToolCatalog`).
+
+    Nota: la cache es un dict en memoria de este proceso -- si el servicio
+    corre con varias replicas, esto NO las invalida a todas.
+    """
+    repo = AppRegistrationRepository(session)
+    await _get_or_404(repo, app_id)
+    invalidated = get_remote_tool_catalog().invalidate(app_id)
+    return {"invalidated": invalidated}

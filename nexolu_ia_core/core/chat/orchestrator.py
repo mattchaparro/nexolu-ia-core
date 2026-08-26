@@ -627,6 +627,7 @@ class ChatOrchestrator:
                 arguments=arguments,
                 status="ok",
                 result_summary=json.dumps(data, ensure_ascii=False)[:500],
+                context=context.model_dump(),
             )
             return json.dumps(data, ensure_ascii=False)
 
@@ -644,6 +645,7 @@ class ChatOrchestrator:
                 arguments=call.arguments,
                 status="error",
                 result_summary=str(exc)[:500],
+                context=context.model_dump(),
             )
             return json.dumps({"error": "No se pudo consultar ese dato en este momento."}, ensure_ascii=False)
         except Exception:

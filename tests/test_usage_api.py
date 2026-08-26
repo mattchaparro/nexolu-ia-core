@@ -118,6 +118,48 @@ async def test_platform_usage_groups_by_app(client, monkeypatch):
     get_settings.cache_clear()
 
 
+async def test_admin_usage_daily_requires_platform_key(client):
+    response = await client.get("/v1/admin/usage/daily", headers=HEADERS)
+    assert response.status_code == 503
+
+
+async def test_admin_usage_daily_sums_across_apps_and_businesses_per_day(client, monkeypatch):
+    monkeypatch.setenv("NEXOLU_PLATFORM_API_KEY", "platform-secret")
+    get_settings.cache_clear()
+
+    await _seed_usage(app_id="pos", business_id="b1", input_tokens=100, output_tokens=0, cost_micros=1000)
+    await _seed_usage(app_id="spa", business_id="b7", input_tokens=50, output_tokens=0, cost_micros=500)
+
+    response = await client.get(
+        "/v1/admin/usage/daily", headers={"Authorization": "Bearer platform-secret"}
+    )
+
+    assert response.status_code == 200
+    [day] = response.json()["days"]
+    assert day["input_tokens"] == 150
+    assert day["date"] == date.today().isoformat()
+    get_settings.cache_clear()
+
+
+async def test_admin_usage_daily_can_filter_to_one_app(client, monkeypatch):
+    monkeypatch.setenv("NEXOLU_PLATFORM_API_KEY", "platform-secret")
+    get_settings.cache_clear()
+
+    await _seed_usage(app_id="pos", business_id="b1", input_tokens=100, output_tokens=0, cost_micros=1000)
+    await _seed_usage(app_id="spa", business_id="b7", input_tokens=50, output_tokens=0, cost_micros=500)
+
+    response = await client.get(
+        "/v1/admin/usage/daily",
+        params={"app_id": "pos"},
+        headers={"Authorization": "Bearer platform-secret"},
+    )
+
+    assert response.status_code == 200
+    [day] = response.json()["days"]
+    assert day["input_tokens"] == 100
+    get_settings.cache_clear()
+
+
 async def test_platform_usage_can_drill_into_one_apps_businesses(client, monkeypatch):
     monkeypatch.setenv("NEXOLU_PLATFORM_API_KEY", "platform-secret")
     get_settings.cache_clear()

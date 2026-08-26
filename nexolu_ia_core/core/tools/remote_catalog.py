@@ -78,6 +78,17 @@ class RemoteToolCatalog:
         )
         return {}
 
+    def invalidate(self, app_id: str) -> bool:
+        """Evicta la entrada cacheada de `app_id`, si hay una.
+
+        Esta cache es un dict en memoria de ESTE proceso: invalidar aca solo
+        afecta a la replica que atendio la llamada. La proxima vez que se
+        necesite el catalogo de esta app, se repuebla sola (ver `_get`); no
+        hay una repoblacion sincrona forzada aca a proposito, para no
+        bloquear la respuesta del endpoint administrativo esperando a la app.
+        """
+        return self._cache.pop(app_id, None) is not None
+
     async def _fetch(self, app: AppIdentity) -> Catalog | None:
         headers = {"Authorization": f"Bearer {app.api_key}"}
 

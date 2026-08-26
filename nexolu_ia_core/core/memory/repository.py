@@ -92,11 +92,42 @@ class ConversationRepository:
         )
         return (await self._session.execute(stmt)).scalar_one_or_none()
 
+    async def get_draft_by_id(self, draft_id: str) -> Draft | None:
+        """A diferencia de `get_draft`, no filtra por tenant -- uso exclusivo
+        del panel administrativo (`api/v1/admin_drafts.py`), que necesita ver
+        y purgar borradores de cualquier app/negocio ante un incidente."""
+        return await self._session.get(Draft, draft_id)
+
+    async def list_drafts(
+        self, *, app_id: str | None = None, status: str | None = None, limit: int = 50, offset: int = 0
+    ) -> list[Draft]:
+        stmt = select(Draft).order_by(Draft.created_at.desc())
+        if app_id is not None:
+            stmt = stmt.where(Draft.app_id == app_id)
+        if status is not None:
+            stmt = stmt.where(Draft.status == status)
+        stmt = stmt.limit(limit).offset(offset)
+        return list((await self._session.execute(stmt)).scalars().all())
+
     async def log_tool_invocation(self, **fields) -> ToolInvocationLog:
         log = ToolInvocationLog(**fields)
         self._session.add(log)
         await self._session.flush()
         return log
+
+    async def get_tool_log(self, log_id: int) -> ToolInvocationLog | None:
+        return await self._session.get(ToolInvocationLog, log_id)
+
+    async def list_tool_logs(
+        self, *, app_id: str | None = None, status: str | None = None, limit: int = 50, offset: int = 0
+    ) -> list[ToolInvocationLog]:
+        stmt = select(ToolInvocationLog).order_by(ToolInvocationLog.created_at.desc())
+        if app_id is not None:
+            stmt = stmt.where(ToolInvocationLog.app_id == app_id)
+        if status is not None:
+            stmt = stmt.where(ToolInvocationLog.status == status)
+        stmt = stmt.limit(limit).offset(offset)
+        return list((await self._session.execute(stmt)).scalars().all())
 
     async def record_usage(
         self, *, app_id: str, business_id: str, input_tokens: int, output_tokens: int, cost_micros: int
@@ -172,6 +203,25 @@ class ConversationRepository:
             .group_by(UsageDaily.business_id)
             .order_by(UsageDaily.business_id)
         )
+        return [tuple(row) for row in (await self._session.execute(stmt)).all()]
+
+    async def usage_daily_platform_series(
+        self, *, app_id: str | None, date_from: date, date_to: date
+    ) -> list[tuple[date, int, int, int, int]]:
+        """Serie diaria agregada cruzando negocios (y apps, si no se filtra
+        una) - exclusiva del reporte de plataforma (ver require_platform_access);
+        analoga a `usage_by_app`/`usage_by_business` pero agrupada por fecha
+        en vez de por clave, para alimentar un grafico de tendencia."""
+        stmt = select(
+            UsageDaily.date,
+            func.sum(UsageDaily.message_count),
+            func.sum(UsageDaily.input_tokens),
+            func.sum(UsageDaily.output_tokens),
+            func.sum(UsageDaily.cost_micros),
+        ).where(UsageDaily.date >= date_from, UsageDaily.date <= date_to)
+        if app_id is not None:
+            stmt = stmt.where(UsageDaily.app_id == app_id)
+        stmt = stmt.group_by(UsageDaily.date).order_by(UsageDaily.date)
         return [tuple(row) for row in (await self._session.execute(stmt)).all()]
 
     async def usage_by_app(self, *, date_from: date, date_to: date) -> list[tuple[str, int, int, int, int]]:

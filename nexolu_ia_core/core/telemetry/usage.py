@@ -97,6 +97,15 @@ class UsageService:
             for business_id, mc, it, ot, cm in rows
         ]
 
+    async def platform_daily_series(
+        self, *, app_id: str | None, date_from: date, date_to: date
+    ) -> list[UsageDailyPoint]:
+        rows = await self._repo.usage_daily_platform_series(app_id=app_id, date_from=date_from, date_to=date_to)
+        return [
+            UsageDailyPoint(date=d, summary=_summary_from_aggregate(mc, it, ot, cm))
+            for d, mc, it, ot, cm in rows
+        ]
+
     async def by_app(self, *, date_from: date, date_to: date) -> list[UsageBreakdown]:
         rows = await self._repo.usage_by_app(date_from=date_from, date_to=date_to)
         return [
