@@ -811,4 +811,36 @@ def build_tool_registry() -> ToolRegistry:
         )
     )
 
+    registry.register(
+        WriteTool(
+            name="crear_proveedor",
+            description=(
+                "Registra un proveedor nuevo. Genera un borrador que el usuario debe confirmar. "
+                "Usala cuando digan \"agrega a Postobon como proveedor\" o cuando quieran registrar "
+                "una compra a alguien que todavia no existe. Solo el nombre es obligatorio: si no "
+                "mencionan telefono o NIT, no se los preguntes."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "nombre": {"type": "string"},
+                    "telefono": {"type": "string"},
+                    "nit": {"type": "string"},
+                    "direccion": {"type": "string"},
+                },
+                "required": ["nombre"],
+            },
+            required_permission="purchases.manage",
+            required_feature="inventory",
+            draft_type="proveedor",
+            summarize=lambda values: f"Proveedor: {values.get('nombre')}",
+            fields=lambda _context: {
+                "nombre": {"type": "string", "label": "Nombre"},
+                "telefono": {"type": "string", "label": "Telefono"},
+                "nit": {"type": "string", "label": "NIT"},
+                "direccion": {"type": "string", "label": "Direccion"},
+            },
+        )
+    )
+
     return registry
