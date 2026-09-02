@@ -11,9 +11,9 @@ def test_el_asistente_tiene_todas_las_herramientas_del_pos() -> None:
     ventas_resumen vivia solo en "analista". El usuario tenia que adivinar
     cual de los cuatro servia para su pregunta.
 
-    Si alguien agrega una herramienta al POS y se olvida de sumarla aqui,
-    reaparece ese agujero: el asistente diria que no puede hacer algo que la
-    app si sabe hacer. Este test lo impide.
+    Hoy la lista se deriva del registro de herramientas, asi que el olvido es
+    imposible por construccion. El test se queda igual: si alguien vuelve a
+    enumerarlas a mano -- por ejemplo para excluir una -- esto lo detecta.
     """
     agentes = build_agent_registry()
     # all() devuelve un dict nombre -> Tool.

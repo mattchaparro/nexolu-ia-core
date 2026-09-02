@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from nexolu_ia_core.apps.pos import prompts
+from nexolu_ia_core.apps.pos.tools import build_tool_registry
 from nexolu_ia_core.core.agents.base import AgentDefinition
 from nexolu_ia_core.core.agents.registry import AgentRegistry
 
@@ -10,21 +11,19 @@ def build_agent_registry() -> AgentRegistry:
 
     # El unico que usa la app. Lleva TODAS las herramientas para que sea el
     # modelo quien elija cual aplica, no el usuario desde un desplegable.
+    #
+    # La lista se DERIVA del registro de herramientas en vez de escribirse a
+    # mano: enumerarla obligaba a acordarse de sumar cada herramienta nueva en
+    # dos lados, y olvidarlo no rompe nada visible -- el asistente simplemente
+    # dice que no puede hacer algo que la app si sabe hacer. Es exactamente el
+    # agujero que hizo inutil al chat del legacy, donde "cuanto vendi en
+    # agosto" fallaba porque ventas_resumen vivia en otro agente.
     registry.register(
         AgentDefinition(
             name="asistente",
             display_name="Asistente",
             instructions=prompts.ASISTENTE,
-            tool_names=(
-                "estado_caja",
-                "crear_gasto",
-                "crear_cliente",
-                "ventas_resumen",
-                "ventas_por_dia",
-                "inventario",
-                "stock_producto",
-                "crear_producto",
-            ),
+            tool_names=tuple(build_tool_registry().all().keys()),
         )
     )
 
