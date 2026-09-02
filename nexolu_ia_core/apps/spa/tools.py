@@ -1,15 +1,31 @@
-"""Herramientas del sistema de Spa.
+"""Herramientas del Spa.
 
-Existe para demostrar que el mismo `core/tools` sirve para un producto
-distinto al POS sin cambiar una linea del Core: son las herramientas que
-lista el pedido original (crear_cita, cancelar_cita, clientes,
-disponibilidad, empleados), como metadata pura -- igual que en `apps/pos`,
-la ejecucion real queda para cuando el Spa exista y exponga su propio
-`/api/ai/tools/invoke`.
+Estas son las que el Spa IMPLEMENTA de verdad en su
+`POST /api/ai/tools/invoke` (ver `App\\Ai\\Registry` en nexolu-spa-api). El
+catalogo de aca y el de alla tienen que coincidir: una herramienta declarada
+que la app no implementa hace que el modelo la intente, reciba un 404 y le
+conteste a la clienta con una disculpa por algo que nunca iba a funcionar.
+
+Dos ausencias deliberadas:
+
+- `clientes`: enumerar la base de clientas del negocio por un chat es
+  exactamente lo que no puede pasar. El Spa responde 404 a proposito, asi
+  que declararla solo produciria intentos fallidos.
+- `empleados`: quien atiende ya viaja dentro de `disponibilidad`, que es
+  donde importa ("a las 10 con Maria"). Una lista suelta del equipo no
+  ayuda a agendar.
+
+Ninguna es `WriteTool`, y eso es una decision del CANAL: una escritura crea
+un borrador y le dice al modelo "la tarjeta ya se le mostro al usuario,
+invitalo a confirmar ahi". En WhatsApp no hay tarjeta -- la clienta diria
+"si" y el modelo generaria otro borrador, en bucle. Aca la confirmacion
+ocurre en palabras, y el prompt la exige. El dia que el panel del Spa tenga
+un chat con tarjetas, ese canal necesitara sus propias herramientas de
+escritura.
 """
 from __future__ import annotations
 
-from nexolu_ia_core.core.tools.base import Tool, WriteTool
+from nexolu_ia_core.core.tools.base import Tool
 from nexolu_ia_core.core.tools.registry import ToolRegistry
 
 
@@ -17,70 +33,85 @@ def build_tool_registry() -> ToolRegistry:
     registry = ToolRegistry()
 
     registry.register(
-        WriteTool(
-            name="crear_cita",
-            description="Agenda una cita para un cliente. Crea un borrador que el usuario debe confirmar.",
-            parameters={
-                "type": "object",
-                "properties": {
-                    "cliente": {"type": "string"},
-                    "servicio": {"type": "string"},
-                    "fecha": {"type": "string", "description": "YYYY-MM-DD"},
-                    "hora": {"type": "string", "description": "HH:MM"},
-                    "empleado": {"type": "string"},
-                },
-                "required": ["cliente", "servicio", "fecha", "hora"],
-            },
-            required_permission="citas.crear",
-            draft_type="cita",
-            summarize=lambda values: f"Cita: {values.get('cliente')} - {values.get('servicio')} el {values.get('fecha')} {values.get('hora')}",
-        )
-    )
-
-    registry.register(
-        WriteTool(
-            name="cancelar_cita",
-            description="Cancela una cita existente. Crea un borrador que el usuario debe confirmar.",
-            parameters={
-                "type": "object",
-                "properties": {"cita_id": {"type": "string"}},
-                "required": ["cita_id"],
-            },
-            required_permission="citas.cancelar",
-            draft_type="cancelacion_cita",
-            summarize=lambda values: f"Cancelar cita #{values.get('cita_id')}",
-        )
-    )
-
-    registry.register(
         Tool(
-            name="clientes",
-            description="Busca clientes del spa por nombre o telefono.",
-            parameters={"type": "object", "properties": {"query": {"type": "string"}}},
-            required_permission="clientes.ver",
+            name="servicios",
+            description=(
+                "Catalogo del negocio: nombre, precio y duracion de cada servicio "
+                "que se puede reservar. Usala antes de proponer precios."
+            ),
+            parameters={"type": "object", "properties": {}},
         )
     )
 
     registry.register(
         Tool(
             name="disponibilidad",
-            description="Horarios disponibles para un servicio en una fecha dada.",
+            description=(
+                "Horas libres de un servicio en una fecha, con quien atiende cada "
+                "una. Es la UNICA fuente de disponibilidad: nunca supongas que una "
+                "hora esta libre."
+            ),
             parameters={
                 "type": "object",
                 "properties": {
+                    "servicio": {"type": "string", "description": "Nombre del servicio"},
                     "fecha": {"type": "string", "description": "YYYY-MM-DD"},
-                    "servicio": {"type": "string"},
+                    "empleado": {"type": "string", "description": "Opcional: con quien"},
+                    "sede": {"type": "string", "description": "Obligatorio si el negocio tiene varias"},
                 },
-                "required": ["fecha"],
+                "required": ["servicio", "fecha"],
             },
         )
     )
 
     registry.register(
         Tool(
-            name="empleados",
-            description="Listado de empleados del spa y los servicios que prestan.",
+            name="mis_citas",
+            description=(
+                "Las citas proximas de la persona con la que estas hablando. No "
+                "recibe a quien: siempre son las suyas."
+            ),
             parameters={"type": "object", "properties": {}},
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="crear_cita",
+            description=(
+                "Agenda la cita. Llamala SOLO despues de que la persona haya "
+                "confirmado servicio, fecha y hora en la conversacion."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "servicio": {"type": "string"},
+                    "fecha": {"type": "string", "description": "YYYY-MM-DD"},
+                    "hora": {"type": "string", "description": "HH:MM"},
+                    "empleado": {"type": "string", "description": "Opcional"},
+                    "sede": {"type": "string", "description": "Obligatorio si hay varias"},
+                    "cliente": {"type": "string", "description": "Su nombre, si aun no lo tienes"},
+                },
+                "required": ["servicio", "fecha", "hora"],
+            },
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="cancelar_cita",
+            description=(
+                "Cancela una cita de la persona. El id sale de `mis_citas`. "
+                "Pregunta cual antes de cancelar si tiene mas de una."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cita_id": {"type": "integer"},
+                    "motivo": {"type": "string"},
+                },
+                "required": ["cita_id"],
+            },
         )
     )
 
