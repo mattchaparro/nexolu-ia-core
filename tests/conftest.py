@@ -22,6 +22,21 @@ POS_API_KEY = "dev-pos-key"
 
 @pytest.fixture(autouse=True)
 def app_env(tmp_path, monkeypatch):
+    from nexolu_ia_core.config import Settings
+
+    # La suite NO lee el .env del desarrollador.
+    #
+    # `Settings` declara `env_file=".env"`, asi que pydantic lo carga aunque
+    # la variable no este exportada. Eso hace que una prueba cambie de
+    # resultado en cuanto alguien configura el servicio para trabajar en
+    # local: "esta apagado si no hay llave de plataforma" empieza a fallar
+    # porque ahora SI hay llave, sin que nadie haya tocado el codigo.
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+
+    # Y tampoco hereda lo que este exportado en la terminal: las pruebas que
+    # necesitan llave de plataforma la ponen ellas con `monkeypatch.setenv`.
+    monkeypatch.delenv("NEXOLU_PLATFORM_API_KEY", raising=False)
+
     db_path = tmp_path / "test.db"
     monkeypatch.setenv("DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
     monkeypatch.setenv("IA_CORE_MASTER_KEY", TEST_MASTER_KEY)

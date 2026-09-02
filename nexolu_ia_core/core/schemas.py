@@ -133,6 +133,19 @@ class TenantContext(BaseModel):
     timezone: str = "America/Bogota"
     locale: str = "es"
 
+    # Quien es este negocio, en palabras, tal como lo afirma la app.
+    #
+    # El Core no puede saberlo: no tiene la base de datos del negocio. Sin
+    # esto el agente habla como "un spa generico" -- no sabe como se llama el
+    # local, a que hora abre ni con cuanta antelacion se puede cancelar, y
+    # cada respuesta suena a formulario.
+    #
+    # Es DESCRIPTIVO, no instrucciones: se inyecta rotulado como datos del
+    # negocio y la disciplina de herramientas se reafirma DESPUES, para que un
+    # perfil mal escrito -- o escrito con malicia por su propio dueno -- no
+    # pueda convertir al agente en alguien que inventa disponibilidad.
+    business_profile: str | None = Field(default=None, max_length=2000)
+
     def resolved(self, app_id: str) -> TenantContext:
         """Copia con business_id resuelto: si la app no mando uno, cae al
         propio app_id - asi toda su actividad queda bajo una sola particion
