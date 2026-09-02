@@ -8,6 +8,28 @@ from nexolu_ia_core.core.agents.registry import AgentRegistry
 def build_agent_registry() -> AgentRegistry:
     registry = AgentRegistry()
 
+    # El unico que usa la app. Lleva TODAS las herramientas para que sea el
+    # modelo quien elija cual aplica, no el usuario desde un desplegable.
+    registry.register(
+        AgentDefinition(
+            name="asistente",
+            display_name="Asistente",
+            instructions=prompts.ASISTENTE,
+            tool_names=(
+                "estado_caja",
+                "crear_gasto",
+                "crear_cliente",
+                "ventas_resumen",
+                "ventas_por_dia",
+                "inventario",
+                "stock_producto",
+                "crear_producto",
+            ),
+        )
+    )
+
+    # Especializados: se conservan por compatibilidad con clientes que sigan
+    # mandando su nombre. No se ofrecen en la interfaz.
     registry.register(
         AgentDefinition(
             name="cajero",
