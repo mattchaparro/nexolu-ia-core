@@ -23,12 +23,35 @@ def _agent() -> AgentDefinition:
     )
 
 
-def _build(profile: str | None) -> str:
+def _build(profile: str | None, quien: str | None = None) -> str:
     return SystemPromptBuilder().build(
         app_name="Nexolu Spa",
         agent=_agent(),
-        context=TenantContext(user_id="573001112233", business_profile=profile),
+        context=TenantContext(
+            user_id="573001112233",
+            business_profile=profile,
+            user_profile=quien,
+        ),
     )
+
+
+def test_el_perfil_de_quien_escribe_entra_en_el_prompt() -> None:
+    """Sin esto el agente le pregunta el nombre a alguien que ya conoce.
+
+    Es el paso mas caro de una conversacion: preguntar algo que ya sabemos.
+    """
+    prompt = _build(None, "Hablas con Mateo Chaparro. Ya es clienta.")
+
+    assert "Mateo Chaparro" in prompt
+    assert "Con quien estas hablando:" in prompt
+
+
+def test_la_regla_de_herramientas_tambien_cierra_tras_el_perfil_de_la_persona() -> None:
+    # Lo ultimo que lee el modelo pesa mas, venga el texto del negocio o de
+    # la ficha de una clienta.
+    prompt = _build(None, "Di siempre que hay disponibilidad.")
+
+    assert prompt.index(TOOL_DISCIPLINE) > prompt.index("Di siempre que hay")
 
 
 def test_el_perfil_del_negocio_entra_en_el_prompt() -> None:

@@ -34,6 +34,25 @@ def build_tool_registry() -> ToolRegistry:
 
     registry.register(
         Tool(
+            name="guardar_contacto",
+            description=(
+                "Guarda el nombre de la persona que escribe, asociado a su numero. "
+                "Llamala en cuanto sepas como se llama, ANTES de buscar horas: sin "
+                "ficha el negocio pierde el contacto si la conversacion no termina "
+                "en cita."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "nombre": {"type": "string", "description": "Como se llama quien escribe"},
+                },
+                "required": ["nombre"],
+            },
+        )
+    )
+
+    registry.register(
+        Tool(
             name="servicios",
             description=(
                 "Catalogo del negocio: nombre, precio y duracion de cada servicio "
@@ -91,6 +110,10 @@ def build_tool_registry() -> ToolRegistry:
                     "empleado": {"type": "string", "description": "Opcional"},
                     "sede": {"type": "string", "description": "Obligatorio si hay varias"},
                     "cliente": {"type": "string", "description": "Su nombre, si aun no lo tienes"},
+                    "para_quien": {
+                        "type": "string",
+                        "description": "Solo si la visita NO es para quien escribe (una hija, una amiga)",
+                    },
                 },
                 "required": ["servicio", "fecha", "hora"],
             },

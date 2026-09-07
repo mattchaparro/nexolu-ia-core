@@ -52,6 +52,15 @@ class SystemPromptBuilder:
 
         if perfil:
             parts.append("Datos del negocio que atiendes:\n" + perfil)
+
+        # Con quien habla. Va DESPUES del negocio porque es lo mas concreto
+        # del turno, y antes del cierre de disciplina como todo lo demas.
+        quien = (context.user_profile or "").strip()
+
+        if quien:
+            parts.append("Con quien estas hablando:\n" + quien)
+
+        if perfil or quien:
             parts.append(TOOL_DISCIPLINE)
 
         return "\n\n".join(p for p in parts if p)

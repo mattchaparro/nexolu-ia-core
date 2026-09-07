@@ -146,6 +146,16 @@ class TenantContext(BaseModel):
     # pueda convertir al agente en alguien que inventa disponibilidad.
     business_profile: str | None = Field(default=None, max_length=2000)
 
+    # Con QUIEN esta hablando, tal como lo afirma la app.
+    #
+    # El gemelo del anterior: uno dice quien es el negocio, este quien esta
+    # del otro lado. Sin el, el agente le pregunta el nombre a alguien que
+    # lleva tres anos viniendo, y cada conversacion empieza de cero.
+    #
+    # Mismo trato que `business_profile`: entra rotulado como datos, no como
+    # ordenes, y la disciplina de herramientas se reafirma despues.
+    user_profile: str | None = Field(default=None, max_length=1000)
+
     def resolved(self, app_id: str) -> TenantContext:
         """Copia con business_id resuelto: si la app no mando uno, cae al
         propio app_id - asi toda su actividad queda bajo una sola particion
