@@ -16,6 +16,12 @@ dependencies = [
     "httpx>=0.27",
     "python-multipart>=0.0.12",
     "tenacity>=9.0",
+    # El contexto de fecha que se le inyecta al modelo se calcula con
+    # `ZoneInfo(context.timezone)` (ver core/chat/orchestrator.py). Windows no
+    # trae base de zonas del sistema: sin esto, `ZoneInfo` falla y el chat cae
+    # a UTC -- a partir de las 7 pm en Bogota el modelo cree que es manana y
+    # fecha "hoy" un dia corrido.
+    "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]

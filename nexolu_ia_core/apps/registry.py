@@ -39,4 +39,9 @@ def get_app_bundle(app_id: str) -> AppBundle:
 
         return build_bundle()
 
+    if app_id == "hogar":
+        from nexolu_ia_core.apps.hogar import build_bundle
+
+        return build_bundle()
+
     raise KeyError(f"Aplicacion desconocida: {app_id}")

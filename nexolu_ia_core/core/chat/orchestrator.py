@@ -18,7 +18,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
-from datetime import datetime
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from nexolu_ia_core.core.agents.base import AgentDefinition
@@ -468,12 +468,24 @@ class ChatOrchestrator:
         turns = self._turns_from_messages(messages)
 
         if turns and turns[-1].role == Role.USER:
+            # Si la zona no se puede resolver, el reloj cae a UTC -- pero la
+            # etiqueta tiene que caer con el. Decirle al modelo "hoy es
+            # 2026-09-11 02:39 (America/Bogota)" a las 9 de la noche del 10 en
+            # Bogota es peor que no decirle la zona: el modelo fecha "hoy"
+            # manana y la escritura queda con el dia corrido, sin que nada
+            # falle a la vista. (Pasa en Windows sin el paquete `tzdata`.)
             try:
                 now = datetime.now(ZoneInfo(context.timezone))
+                zona = context.timezone
             except Exception:  # noqa: BLE001 - un timezone invalido no debe tumbar el chat
-                now = datetime.utcnow()
+                logger.warning(
+                    "No se pudo resolver la zona horaria '%s'; el contexto de fecha cae a UTC.",
+                    context.timezone,
+                )
+                now = datetime.now(UTC)
+                zona = "UTC"
             stamp = now.strftime("%Y-%m-%d %H:%M")
-            turns[-1] = ChatTurn.user(f"[Contexto: hoy es {stamp} ({context.timezone})]\n\n{turns[-1].content}")
+            turns[-1] = ChatTurn.user(f"[Contexto: hoy es {stamp} ({zona})]\n\n{turns[-1].content}")
 
         return turns
 

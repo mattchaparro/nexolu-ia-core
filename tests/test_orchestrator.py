@@ -222,3 +222,51 @@ async def test_conversation_history_round_trips_across_two_messages(session, htt
     contents = [t.content for t in second_request.messages if t.content]
     assert any("Hola" in c for c in contents)
     assert any("Hola! ¿En que te ayudo?" in c for c in contents)
+
+
+async def _stamp_del_ultimo_turno(session, timezone: str) -> str:
+    """Devuelve la etiqueta de fecha que el orquestador le pega al ultimo
+    turno de usuario antes de mandarselo al modelo."""
+    provider = ScriptedProvider([ChatResult(text="ok", model="scripted-model")])
+
+    orchestrator = ChatOrchestrator(
+        repository=ConversationRepository(session),
+        provider_registry=FixedProviderRegistry(provider),
+        model_router=ModelRouter(),
+    )
+
+    await orchestrator.send_message(
+        app_identity=APP,
+        app_display_name="Nexolu POS",
+        tool_registry=build_tool_registry(),
+        agent=build_agent_registry().get("cajero"),
+        context=TenantContext(business_id="b1", user_id="u1", is_admin=True, timezone=timezone),
+        message="Que dia es hoy?",
+        conversation_id=None,
+    )
+
+    return provider.calls[0].messages[-1].content
+
+
+async def test_el_contexto_de_fecha_usa_la_zona_del_tenant(session):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    contenido = await _stamp_del_ultimo_turno(session, "America/Bogota")
+
+    assert "(America/Bogota)" in contenido
+    assert datetime.now(ZoneInfo("America/Bogota")).strftime("%Y-%m-%d") in contenido
+
+
+async def test_una_zona_que_no_se_puede_resolver_cae_a_utc_y_lo_dice(session):
+    """El fallback a UTC es aceptable; mentir sobre la zona no.
+
+    Etiquetar un reloj UTC como "(America/Bogota)" hace que a las 9 de la
+    noche del 10 en Bogota el modelo crea que es 11 y feche "hoy" un dia
+    corrido -- sin que nada falle a la vista. Se vio de verdad, en Windows
+    sin el paquete `tzdata`.
+    """
+    contenido = await _stamp_del_ultimo_turno(session, "Marte/Olimpo")
+
+    assert "(UTC)" in contenido
+    assert "Marte/Olimpo" not in contenido
