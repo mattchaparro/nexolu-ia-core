@@ -54,3 +54,18 @@ def test_el_agente_tiene_con_que_agendar_de_punta_a_punta() -> None:
     # Sin catalogo no puede decir precios; sin disponibilidad inventaria horas.
     for necesaria in ("servicios", "disponibilidad", "crear_cita", "mis_citas"):
         assert necesaria in agente.tool_names
+
+
+def test_el_agente_puede_pasar_la_conversacion_a_una_persona() -> None:
+    """Sin esto, pedirle al bot "quiero hablar con alguien" no hacia NADA:
+    el relevo solo existia si la clienta tocaba el boton de un flujo."""
+    agente = build_agent_registry().get("recepcionista")
+
+    assert "hablar_con_persona" in agente.tool_names
+    assert "hablar_con_persona" in build_tool_registry().all()
+
+
+def test_el_agente_puede_mover_una_cita_sin_cancelarla_primero() -> None:
+    """Cancelar y volver a crear deja a la clienta sin nada si la hora nueva
+    resulto ocupada entre una llamada y la otra."""
+    assert "reagendar_cita" in build_agent_registry().get("recepcionista").tool_names

@@ -138,4 +138,51 @@ def build_tool_registry() -> ToolRegistry:
         )
     )
 
+    registry.register(
+        Tool(
+            name="reagendar_cita",
+            description=(
+                "Mueve una cita existente a otra fecha/hora. El id sale de "
+                "`mis_citas`. Confirma la hora nueva con `disponibilidad` antes "
+                "de llamarla. Siempre mejor que cancelar y volver a crear: la "
+                "persona no pierde su turno si la hora nueva resulta ocupada."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "cita_id": {"type": "integer"},
+                    "fecha": {"type": "string", "description": "YYYY-MM-DD"},
+                    "hora": {"type": "string", "description": "HH:MM"},
+                    "empleado": {"type": "string", "description": "Opcional, si quiere cambiar de persona"},
+                },
+                "required": ["cita_id", "fecha", "hora"],
+            },
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="hablar_con_persona",
+            description=(
+                "Avisa al equipo del negocio que esta conversacion necesita a "
+                "alguien de carne y hueso, y TE CALLA a ti hasta que respondan. "
+                "Llamala cuando lo pidan ('quiero hablar con alguien', 'me "
+                "atiende una persona?'), cuando se quejen o reclamen, y cuando "
+                "algo se salga de lo que puedes resolver (precios especiales, "
+                "un problema con un trabajo hecho, algo delicado). Es preferible "
+                "llamarla de mas que dejar a alguien molesto hablandole a un bot."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "motivo": {
+                        "type": "string",
+                        "description": "Que necesita, en una linea, para quien vaya a atender",
+                    },
+                },
+                "required": ["motivo"],
+            },
+        )
+    )
+
     return registry
