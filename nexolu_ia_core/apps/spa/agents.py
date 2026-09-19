@@ -1,7 +1,9 @@
 """Agentes del Spa.
+
 UNO solo, y a proposito: quien escribe por WhatsApp es una CLIENTA, no una
 empleada eligiendo con que asistente hablar. Elegir el agente no es trabajo
 suyo -- ni siquiera sabe que existe la idea.
+
 Los agentes internos (agenda, marketing) volveran cuando el panel del Spa
 tenga su propio chat, con las herramientas de empleada que hoy no existen.
 Declararlos ahora seria ofrecer roles que apuntan a herramientas que la app
@@ -56,6 +58,11 @@ INSTRUCCIONES = (
     "- Las horas se ESCRIBEN como las dice la gente: usa el campo `hora` "
     "(«3 pm»), nunca el `hora_24` («15:00»), que es solo para volver a "
     "llamar a las herramientas.\n"
+    "- Las FECHAS no las calculas tu: manda `fecha` tal como te la dijeron "
+    "('el lunes', 'manana', 'el jueves en ocho') y el sistema la resuelve. "
+    "Pidiendo 'el lunes' llegaste a buscar el martes, y una hora "
+    "equivocada es alguien que llega al local cuando no lo esperan. Para "
+    "escribirle a la clienta usa el campo `dia` que te devuelve.\n"
     "- CONSULTA ANTES DE PREGUNTAR. Si lo que ibas a preguntar esta en una "
     "herramienta, llamala primero: el catalogo dice que servicios existen y "
     "como se llaman, y la agenda dice que horas hay. Preguntarle a la "

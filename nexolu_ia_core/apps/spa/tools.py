@@ -81,7 +81,19 @@ def build_tool_registry() -> ToolRegistry:
                         "items": {"type": "string"},
                         "description": "Varios servicios en la MISMA visita (hasta 5)",
                     },
-                    "fecha": {"type": "string", "description": "YYYY-MM-DD"},
+                    "fecha": {
+                        "type": "string",
+                        "description": (
+                            "El dia TAL COMO lo dijo: 'hoy', 'manana', 'el lunes', "
+                            "'el jueves en ocho' o YYYY-MM-DD. NO lo conviertas tu: "
+                            "la cuenta la hace el sistema, que sabe que dia es hoy."
+                        ),
+                    },
+                    "franja": {
+                        "type": "string",
+                        "enum": ["manana", "tarde", "noche"],
+                        "description": "Si dijo una franja ('en la tarde'), mandala y el sistema filtra",
+                    },
                     "empleado": {"type": "string", "description": "Opcional: con quien"},
                     "sede": {"type": "string", "description": "Solo si el negocio tiene varias"},
                 },
@@ -120,8 +132,11 @@ def build_tool_registry() -> ToolRegistry:
                         "items": {"type": "string"},
                         "description": "Varios en la MISMA visita (hasta 5)",
                     },
-                    "fecha": {"type": "string", "description": "YYYY-MM-DD"},
-                    "hora": {"type": "string", "description": "HH:MM"},
+                    "fecha": {
+                        "type": "string",
+                        "description": "El dia tal como lo dijo ('el lunes', 'manana') o YYYY-MM-DD",
+                    },
+                    "hora": {"type": "string", "description": "HH:MM (el `hora_24` de disponibilidad)"},
                     "empleado": {"type": "string", "description": "Opcional"},
                     "sede": {"type": "string", "description": "Obligatorio si hay varias"},
                     "cliente": {"type": "string", "description": "Su nombre, si aun no lo tienes"},
