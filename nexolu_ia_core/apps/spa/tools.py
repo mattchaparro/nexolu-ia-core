@@ -93,7 +93,10 @@ def build_tool_registry() -> ToolRegistry:
                             # servicio de uñas?" en vez de mandarlo.
                             "Un solo servicio. Mandalo COMO LO DIJO ELLA: 'las "
                             "manitos', 'las uñas', 'hacerme las uñas', 'los "
-                            "pieses', 'un retoque', 'arreglarme las manos'. El "
+                            "pieses', 'un retoque', 'arreglarme las manos'. Y "
+                            "si contesta 'No veo el mío' -- la ultima fila de "
+                            "una lista larga -- mandame ESAS mismas palabras y "
+                            "te devuelvo los servicios que faltaban. El "
                             "sistema lo traduce al catalogo, y si da para varios le "
                             "manda los nombres reales para que TOQUE uno. Nunca le "
                             "preguntes '¿que servicio quieres?': no tiene por que "
