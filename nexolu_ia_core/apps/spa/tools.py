@@ -68,22 +68,34 @@ def build_tool_registry() -> ToolRegistry:
             description=(
                 "Horas libres en una fecha, con quien atiende cada una. Es la "
                 "UNICA fuente de disponibilidad: nunca supongas que una hora "
-                "esta libre. Si quiere VARIOS servicios en la misma visita "
+                "esta libre. LLAMALA APENAS sepas que quiere y que dia, en el "
+                "mismo turno: no hace falta saber su nombre ni que te confirme "
+                "nada para MIRAR. Si quiere VARIOS servicios en la misma visita "
                 "('manos y pies'), mandalos todos en `servicios` -- se agendan "
                 "como UNA cita encadenada, no como dos."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "servicio": {"type": "string", "description": "Un solo servicio"},
+                    "servicio": {
+                        "type": "string",
+                        "description": (
+                            "Un solo servicio. Mandalo COMO LO DIJO ELLA: 'las "
+                            "manitos', 'las unas', 'los pieses', 'un retoque'. El "
+                            "sistema lo traduce al catalogo, y si da para varios le "
+                            "manda los nombres reales para que TOQUE uno. Nunca le "
+                            "preguntes '¿que servicio quieres?': no tiene por que "
+                            "saberse como lo llamamos nosotros."
+                        ),
+                    },
                     "servicios": {
                         "type": "array",
                         "items": {"type": "string"},
                         "description": (
-                            "Varios servicios. Con `juntas` en false (o sin el): UNA "
-                            "persona, uno despues del otro ('manos y pies'). Con "
-                            "`juntas` en true: VARIAS personas a la misma hora, un "
-                            "servicio por cada una."
+                            "Varios servicios, tambien como los diga ella. Con "
+                            "`juntas` en false (o sin el): UNA persona, uno despues "
+                            "del otro ('manos y pies'). Con `juntas` en true: VARIAS "
+                            "personas a la misma hora, un servicio por cada una."
                         ),
                     },
                     "juntas": {
