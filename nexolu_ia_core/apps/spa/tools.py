@@ -87,8 +87,13 @@ def build_tool_registry() -> ToolRegistry:
                     "servicio": {
                         "type": "string",
                         "description": (
+                            # Con la eñe de verdad: la clienta escribe "uñas",
+                            # y con el ejemplo en "unas" el modelo no ataba
+                            # una cosa con la otra -- preguntaba "¿que
+                            # servicio de uñas?" en vez de mandarlo.
                             "Un solo servicio. Mandalo COMO LO DIJO ELLA: 'las "
-                            "manitos', 'las unas', 'los pieses', 'un retoque'. El "
+                            "manitos', 'las uñas', 'hacerme las uñas', 'los "
+                            "pieses', 'un retoque', 'arreglarme las manos'. El "
                             "sistema lo traduce al catalogo, y si da para varios le "
                             "manda los nombres reales para que TOQUE uno. Nunca le "
                             "preguntes '¿que servicio quieres?': no tiene por que "
