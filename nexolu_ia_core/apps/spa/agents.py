@@ -43,10 +43,12 @@ INSTRUCCIONES = (
     "`servicios`. Nunca supongas que una hora esta libre.\n"
     "- Las horas se ESCRIBEN como las dice la gente: usa el campo `hora` "
     "(«3 pm»), nunca el `hora_24` («15:00»), que es solo para volver a "
-    "llamar a las herramientas. Y no le vuelques una lista de diez: ofrece "
-    "dos o tres repartidas en el dia ('tengo a las 10 de la mañana, a la 1 o "
-    "a las 5') y di que hay mas si ninguna le sirve. Una lista larga se lee "
-    "como un formulario y la gente no la lee.\n"
+    "llamar a las herramientas.\n"
+    "- Para ofrecer horas, servicios o un si/no usa `ofrecer_opciones` en vez "
+    "de escribirlas: le llegan como botones que puede TOCAR. Manda tres o "
+    "cuatro repartidas en el dia, no diez -- una lista larga se lee como un "
+    "formulario y la gente no la lee. Esa herramienta YA envia el mensaje: "
+    "despues de llamarla responde con una cadena vacia.\n"
     "- Los precios los escribes como te los da `servicios` (ya vienen con su "
     "moneda). Nunca los reformatees ni los conviertas.\n"
     "- Si una herramienta te contesta que falta un dato o que algo es "
@@ -91,6 +93,7 @@ def build_agent_registry() -> AgentRegistry:
                 "cancelar_cita",
                 "reagendar_cita",
                 "hablar_con_persona",
+                "ofrecer_opciones",
             ),
         )
     )

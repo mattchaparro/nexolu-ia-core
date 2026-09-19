@@ -162,6 +162,40 @@ def build_tool_registry() -> ToolRegistry:
 
     registry.register(
         Tool(
+            name="ofrecer_opciones",
+            description=(
+                "Le manda a la persona opciones que puede TOCAR (botones si son "
+                "3 o menos, lista si son mas) en vez de hacerla escribir. Usala "
+                "SIEMPRE que le ofrezcas horas, servicios o un si/no: tocar es "
+                "un gesto, escribir una hora es un esfuerzo -- y ahi es donde se "
+                "pierde la cita. IMPORTANTE: esta herramienta YA le envia el "
+                "mensaje; despues de llamarla responde con una cadena vacia, "
+                "porque cualquier texto tuyo le llegaria repetido."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "mensaje": {
+                        "type": "string",
+                        "description": "Lo que va escrito arriba de las opciones",
+                    },
+                    "opciones": {
+                        "type": "array",
+                        "items": {"type": "string", "maxLength": 24},
+                        "description": "Maximo 10, cortas ('3 pm', 'Semipermanente', 'Si')",
+                    },
+                    "boton": {
+                        "type": "string",
+                        "description": "Solo si son 4 o mas: el texto que abre la lista ('Ver horas')",
+                    },
+                },
+                "required": ["mensaje", "opciones"],
+            },
+        )
+    )
+
+    registry.register(
+        Tool(
             name="hablar_con_persona",
             description=(
                 "Avisa al equipo del negocio que esta conversacion necesita a "
