@@ -79,7 +79,20 @@ def build_tool_registry() -> ToolRegistry:
                     "servicios": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Varios servicios en la MISMA visita (hasta 5)",
+                        "description": (
+                            "Varios servicios. Con `juntas` en false (o sin el): UNA "
+                            "persona, uno despues del otro ('manos y pies'). Con "
+                            "`juntas` en true: VARIAS personas a la misma hora, un "
+                            "servicio por cada una."
+                        ),
+                    },
+                    "juntas": {
+                        "type": "boolean",
+                        "description": (
+                            "true cuando son VARIAS PERSONAS al tiempo (ella y su hija). "
+                            "Necesita una profesional libre por cada una, asi que puede "
+                            "haber menos horas."
+                        ),
                     },
                     "fecha": {
                         "type": "string",
@@ -130,7 +143,23 @@ def build_tool_registry() -> ToolRegistry:
                     "servicios": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "Varios en la MISMA visita (hasta 5)",
+                        "description": (
+                            "Varios servicios: una cadena para UNA persona, o uno por "
+                            "cada persona si `juntas` es true."
+                        ),
+                    },
+                    "juntas": {
+                        "type": "boolean",
+                        "description": "true = VARIAS personas a la misma hora (dos citas)",
+                    },
+                    "nombres": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Solo con `juntas`: como se llama cada una, en el mismo orden "
+                            "que `servicios`. El local necesita saber a quien atiende en "
+                            "cada silla."
+                        ),
                     },
                     "fecha": {
                         "type": "string",
