@@ -107,6 +107,7 @@ class OpenAICompatibleProvider(ChatProvider):
         payload: dict = {
             "model": self._model,
             "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
             "messages": self._build_messages(request),
             # Sin esto la respuesta no trae detalle de tokens cacheados: no hay
             # forma de saber cuanto del prefijo se sirvio desde cache.

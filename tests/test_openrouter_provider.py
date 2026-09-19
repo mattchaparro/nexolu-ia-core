@@ -220,3 +220,32 @@ async def test_api_key_override_is_used_instead_of_the_global_settings_key(httpx
 
     request = httpx_mock.get_requests()[0]
     assert request.headers["Authorization"] == "Bearer sk-or-app-especifica"
+
+
+async def test_la_temperatura_va_en_cero_salvo_que_se_pida_otra(httpx_mock):
+    """Sin fijarla, el proveedor usa la suya (~1.0) y el agente decide
+    distinto en cada corrida con la misma conversacion: la evaluacion del
+    spa daba 23, 24, 25 y 26 de 28 sin tocar codigo. Esto no escribe
+    poesia, decide si mira la agenda o pregunta."""
+    provider = OpenRouterProvider(make_settings())
+    httpx_mock.add_response(json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}})
+
+    await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")]))
+
+    assert httpx_mock.get_requests()[0].read()
+    import json as _json
+
+    assert _json.loads(httpx_mock.get_requests()[0].read())["temperature"] == 0.0
+
+
+async def test_se_puede_pedir_otra_temperatura_cuando_hace_falta(httpx_mock):
+    """Redactar una campana no es lo mismo que agendar: el cero es el
+    valor por defecto, no una prohibicion."""
+    provider = OpenRouterProvider(make_settings())
+    httpx_mock.add_response(json={"model": "test/model", "choices": [{"message": {"content": "ok"}}], "usage": {}})
+
+    await provider.chat(ChatRequest(system="s", messages=[ChatTurn.user("hola")], temperature=0.8))
+
+    import json as _json
+
+    assert _json.loads(httpx_mock.get_requests()[0].read())["temperature"] == 0.8

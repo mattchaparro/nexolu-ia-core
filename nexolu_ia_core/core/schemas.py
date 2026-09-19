@@ -69,6 +69,15 @@ class ChatRequest(BaseModel):
     tools: list[ToolDefinition] = Field(default_factory=list)
     max_tokens: int = 1500
     reasoning: bool = False
+    # Cero por defecto, y no el del proveedor (~1.0): esto no escribe
+    # poesia, decide si mira la agenda o pregunta. Se estuvo mandando sin
+    # fijarla y la evaluacion del agente del spa daba 23, 24, 25 y 26 de
+    # 28 sin tocar una linea de codigo -- ruido suficiente para creerle a
+    # una mejora que no existia, o para "arreglar" algo que no estaba
+    # roto. No la elimina (ver el informe: la varianza tambien nace del
+    # tamano de lote en el servidor de inferencia), pero quita la parte
+    # que si controlamos.
+    temperature: float = 0.0
 
 
 class ChatResult(BaseModel):
