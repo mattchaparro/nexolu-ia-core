@@ -56,7 +56,14 @@ def build_tool_registry() -> ToolRegistry:
             name="servicios",
             description=(
                 "Catalogo del negocio: nombre, precio y duracion de cada servicio "
-                "que se puede reservar. Usala antes de proponer precios."
+                "que se puede reservar. Usala antes de proponer precios. Y usala "
+                "SIEMPRE que estes a punto de preguntarle a ella algo del "
+                "catalogo: que servicios hay, como se llama lo que quiere, si "
+                "'las manitos' es manicure, cuanto se demora, si existe tal "
+                "cosa. Ella no se sabe el catalogo -- preguntarselo es hacerle "
+                "hacer tu trabajo, y muchas veces tampoco sabe la respuesta. Es "
+                "gratis y no compromete a nada: mirar primero, preguntar "
+                "despues."
             ),
             parameters={"type": "object", "properties": {}},
         )
