@@ -66,19 +66,26 @@ def build_tool_registry() -> ToolRegistry:
         Tool(
             name="disponibilidad",
             description=(
-                "Horas libres de un servicio en una fecha, con quien atiende cada "
-                "una. Es la UNICA fuente de disponibilidad: nunca supongas que una "
-                "hora esta libre."
+                "Horas libres en una fecha, con quien atiende cada una. Es la "
+                "UNICA fuente de disponibilidad: nunca supongas que una hora "
+                "esta libre. Si quiere VARIOS servicios en la misma visita "
+                "('manos y pies'), mandalos todos en `servicios` -- se agendan "
+                "como UNA cita encadenada, no como dos."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "servicio": {"type": "string", "description": "Nombre del servicio"},
+                    "servicio": {"type": "string", "description": "Un solo servicio"},
+                    "servicios": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Varios servicios en la MISMA visita (hasta 5)",
+                    },
                     "fecha": {"type": "string", "description": "YYYY-MM-DD"},
                     "empleado": {"type": "string", "description": "Opcional: con quien"},
-                    "sede": {"type": "string", "description": "Obligatorio si el negocio tiene varias"},
+                    "sede": {"type": "string", "description": "Solo si el negocio tiene varias"},
                 },
-                "required": ["servicio", "fecha"],
+                "required": ["fecha"],
             },
         )
     )
@@ -99,12 +106,20 @@ def build_tool_registry() -> ToolRegistry:
             name="crear_cita",
             description=(
                 "Agenda la cita. Llamala SOLO despues de que la persona haya "
-                "confirmado servicio, fecha y hora en la conversacion."
+                "confirmado servicio, fecha y hora en la conversacion. Varios "
+                "servicios en `servicios` quedan como UNA sola cita, uno "
+                "despues del otro -- nunca digas que hay que agendarlos por "
+                "separado."
             ),
             parameters={
                 "type": "object",
                 "properties": {
-                    "servicio": {"type": "string"},
+                    "servicio": {"type": "string", "description": "Un solo servicio"},
+                    "servicios": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Varios en la MISMA visita (hasta 5)",
+                    },
                     "fecha": {"type": "string", "description": "YYYY-MM-DD"},
                     "hora": {"type": "string", "description": "HH:MM"},
                     "empleado": {"type": "string", "description": "Opcional"},
@@ -115,7 +130,7 @@ def build_tool_registry() -> ToolRegistry:
                         "description": "Solo si la visita NO es para quien escribe (una hija, una amiga)",
                     },
                 },
-                "required": ["servicio", "fecha", "hora"],
+                "required": ["fecha", "hora"],
             },
         )
     )
