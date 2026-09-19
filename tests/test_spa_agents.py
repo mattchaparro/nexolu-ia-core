@@ -90,3 +90,13 @@ def test_el_prompt_dice_como_se_ve_un_mensaje_de_whatsapp() -> None:
 
     assert "*negrilla*" in instrucciones
     assert "Emojis con medida" in instrucciones
+
+
+def test_el_prompt_prohibe_inventar_precios() -> None:
+    """Paso en produccion con el catalogo real: al quinto mensaje el modelo
+    cotizo "Manicura y Pedicura 70.000" -- un servicio que no existe. Alguien
+    llega al local esperando pagar eso."""
+    instrucciones = build_agent_registry().get("recepcionista").instructions
+
+    assert "NO INVENTES NADA DEL CATALOGO" in instrucciones
+    assert "ESTE turno" in instrucciones

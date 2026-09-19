@@ -574,7 +574,17 @@ class ChatOrchestrator:
             )
 
         return json.dumps(
-            {"nota": "Datos ya consultados; si necesitas cifras exactas, vuelve a llamar la herramienta."},
+            {
+                # Pasó en producción con un catálogo real: al quinto mensaje
+                # el modelo ya no tenía los precios y se inventó tres
+                # servicios que no existen, con sus valores. Una nota suave
+                # ("si necesitas cifras exactas...") deja abierta la puerta
+                # a completar el hueco de memoria; esta la cierra.
+                "nota": "RESULTADO DESCARTADO por antiguedad. Los datos que estaban aqui "
+                "YA NO ESTAN: no cites de memoria precios, horas, duraciones ni nombres "
+                "que vinieron de esta llamada. Si los necesitas, vuelve a llamar la "
+                "herramienta."
+            },
             ensure_ascii=False,
         )
 
