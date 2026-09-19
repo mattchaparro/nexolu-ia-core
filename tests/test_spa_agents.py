@@ -69,3 +69,24 @@ def test_el_agente_puede_mover_una_cita_sin_cancelarla_primero() -> None:
     """Cancelar y volver a crear deja a la clienta sin nada si la hora nueva
     resulto ocupada entre una llamada y la otra."""
     assert "reagendar_cita" in build_agent_registry().get("recepcionista").tool_names
+
+
+def test_el_prompt_prohibe_hablar_como_mesa_de_ayuda() -> None:
+    """Quien atiende es el salon, no una empresa de software: decirle a una
+    clienta que la pasan a "soporte tecnico" rompe la ilusion de estar
+    hablando con la recepcion."""
+    instrucciones = build_agent_registry().get("recepcionista").instructions
+
+    assert "equipo de soporte" in instrucciones  # aparece solo para prohibirlo
+    assert "NUNCA" in instrucciones.split("equipo de soporte")[0][-120:]
+    assert "administrador" in instrucciones
+
+
+def test_el_prompt_dice_como_se_ve_un_mensaje_de_whatsapp() -> None:
+    """Negrilla para lo que hay que retener y emojis con medida: un parrafo
+    plano hay que leerlo entero, y uno lleno de emojis se lee como
+    publicidad."""
+    instrucciones = build_agent_registry().get("recepcionista").instructions
+
+    assert "*negrilla*" in instrucciones
+    assert "Emojis con medida" in instrucciones
