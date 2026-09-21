@@ -91,16 +91,20 @@ def build_tool_registry() -> ToolRegistry:
                             # y con el ejemplo en "unas" el modelo no ataba
                             # una cosa con la otra -- preguntaba "¿que
                             # servicio de uñas?" en vez de mandarlo.
+                            # La instruccion principal va entera y seguida; lo
+                            # de "Muestrame mas servicios" al final. Metida en
+                            # medio, separaba "mandalo como lo dijo" de "nunca
+                            # preguntes que servicio", y el modelo volvio a
+                            # preguntar (0/3 en la evaluacion).
                             "Un solo servicio. Mandalo COMO LO DIJO ELLA: 'las "
                             "manitos', 'las uñas', 'hacerme las uñas', 'los "
-                            "pieses', 'un retoque', 'arreglarme las manos'. Y "
-                            "si contesta 'Muéstrame más servicios' -- la ultima "
-                            "fila de una lista larga -- mandame ESAS mismas "
-                            "palabras y te devuelvo los que faltaban. El "
+                            "pieses', 'un retoque', 'arreglarme las manos'. El "
                             "sistema lo traduce al catalogo, y si da para varios le "
                             "manda los nombres reales para que TOQUE uno. Nunca le "
                             "preguntes '¿que servicio quieres?': no tiene por que "
-                            "saberse como lo llamamos nosotros."
+                            "saberse como lo llamamos nosotros. (Si contesta "
+                            "'Muéstrame más servicios', la ultima fila de una "
+                            "lista larga, mandame esas mismas palabras.)"
                         ),
                     },
                     "servicios": {
