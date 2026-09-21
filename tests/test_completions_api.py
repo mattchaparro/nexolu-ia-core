@@ -63,3 +63,36 @@ async def test_completions_records_usage_for_the_calling_business(client):
 
     assert usage.status_code == 200
     assert usage.json()["summary"]["message_count"] == 1
+
+
+async def test_la_temperatura_se_puede_pedir_por_completion(client, monkeypatch):
+    """El simulador de clientas del Spa necesita variedad: a temperatura cero
+    todas las abuelas escriben igual. Sin pedirla, sigue en cero."""
+    from nexolu_ia_core.api.v1 import completions as modulo
+    from nexolu_ia_core.core.schemas import ChatResult
+
+    capturadas = []
+
+    class Proveedor:
+        async def chat(self, request):
+            capturadas.append(request.temperature)
+            return ChatResult(text="ok", model="stub")
+
+        def estimate_cost_micros(self, i, o):
+            return 0
+
+    class Registro:
+        def resolve(self, *_a, **_k):
+            return Proveedor()
+
+    monkeypatch.setattr(modulo, "get_provider_registry", lambda: Registro())
+
+    con = await client.post(
+        "/v1/completions",
+        json={"system": "s", "user": "u", "temperature": 0.9, "context": CONTEXT},
+        headers=HEADERS,
+    )
+    sin = await client.post("/v1/completions", json={"system": "s", "user": "u", "context": CONTEXT}, headers=HEADERS)
+
+    assert con.status_code == 200 and sin.status_code == 200
+    assert capturadas == [0.9, 0.0]

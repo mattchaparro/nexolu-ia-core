@@ -227,6 +227,11 @@ class CompletionIn(BaseModel):
     user: str
     context: TenantContext
     max_tokens: int = 400
+    # None = la del ChatRequest (cero). Se puede subir cuando lo que se
+    # quiere es VARIEDAD y no exactitud: el simulador de clientas del Spa
+    # juega a ser una persona distinta en cada corrida, y a temperatura
+    # cero todas las abuelas escriben igual.
+    temperature: float | None = None
 
 
 class CompletionOut(BaseModel):

@@ -46,9 +46,11 @@ async def create_completion(
     selection = ModelRouter().resolve(_AGENT, app)
     provider = get_provider_registry().resolve(selection.provider, selection.model, selection.api_key_override)
 
-    result = await provider.chat(
-        ChatRequest(system=payload.system, messages=[ChatTurn.user(payload.user)], max_tokens=payload.max_tokens)
-    )
+    request = ChatRequest(system=payload.system, messages=[ChatTurn.user(payload.user)], max_tokens=payload.max_tokens)
+    if payload.temperature is not None:
+        request.temperature = payload.temperature
+
+    result = await provider.chat(request)
 
     cost_micros = (
         result.cost_micros
