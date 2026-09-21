@@ -37,9 +37,10 @@ def build_tool_registry() -> ToolRegistry:
             name="guardar_contacto",
             description=(
                 "Guarda el nombre de la persona que escribe, asociado a su numero. "
-                "Llamala en cuanto sepas como se llama, ANTES de buscar horas: sin "
-                "ficha el negocio pierde el contacto si la conversacion no termina "
-                "en cita."
+                "Llamala en cuanto sepas como se llama: sin ficha el negocio pierde "
+                "el contacto si la conversacion no termina en cita. Pero NO esperes "
+                "a tener el nombre para mirar la agenda: si ya sabes que quiere y "
+                "que dia, en el mismo turno llama tambien a `disponibilidad`."
             ),
             parameters={
                 "type": "object",
