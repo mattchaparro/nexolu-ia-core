@@ -243,13 +243,20 @@ def build_tool_registry() -> ToolRegistry:
             name="cancelar_cita",
             description=(
                 "Cancela una cita de la persona. El id sale de `mis_citas`. "
-                "Pregunta cual antes de cancelar si tiene mas de una."
+                "Pregunta cual antes de cancelar si tiene mas de una. Si faltan "
+                "pocas horas, la herramienta NO cancela y te devuelve "
+                "`requiere_multa` con el aviso: diselo tal cual y, solo si "
+                "responde que si, vuelve a llamarla con acepta_multa=true."
             ),
             parameters={
                 "type": "object",
                 "properties": {
                     "cita_id": {"type": "integer"},
                     "motivo": {"type": "string"},
+                    "acepta_multa": {
+                        "type": "boolean",
+                        "description": "true SOLO despues de avisarle la multa por cancelacion tardia y que dijera que si",
+                    },
                 },
                 "required": ["cita_id"],
             },
