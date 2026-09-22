@@ -62,7 +62,14 @@ class Settings(BaseSettings):
     # Limites comunes
     ai_timeout_seconds: int = 60
     ai_max_output_tokens: int = 1500
+    # Cuantos mensajes DE LA PERSONA entran como historial. Se cuenta gente,
+    # no filas: un intercambio con herramientas son 4-8 filas, y cuando esto
+    # contaba filas la "memoria" real eran dos o tres turnos -- el bot
+    # saludaba de nuevo a mitad de conversacion y repreguntaba lo ya dicho.
     ai_history_turns: int = 20
+    # Retomar despues de estas horas es otra visita: el historial viejo se
+    # queda fuera y la conversacion empieza limpia (0 = nunca cortar).
+    ai_context_fresh_hours: int = 6
 
     # Clave maestra de cifrado (Fernet) para api_key/provider_api_key de las
     # apps registradas en BD (ver core/security/crypto.py). Nunca se guarda

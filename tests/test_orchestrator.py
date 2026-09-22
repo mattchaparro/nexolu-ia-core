@@ -270,3 +270,72 @@ async def test_una_zona_que_no_se_puede_resolver_cae_a_utc_y_lo_dice(session):
 
     assert "(UTC)" in contenido
     assert "Marte/Olimpo" not in contenido
+
+
+def _mensaje(role: str, hace_minutos: int = 0):
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+
+    return SimpleNamespace(role=role, created_at=datetime(2026, 9, 21, 12, 0) - timedelta(minutes=hace_minutos))
+
+
+def test_la_ventana_cuenta_personas_no_filas():
+    """Contando filas, dos intercambios con herramientas llenaban la
+    ventana: el bot saludaba de nuevo a mitad de conversacion."""
+    mensajes = []
+    for turno in range(6):  # 6 intercambios de 4 filas = 24 filas
+        base = (5 - turno) * 10
+        mensajes += [
+            _mensaje("user", base + 3),
+            _mensaje("assistant", base + 2),
+            _mensaje("tool", base + 1),
+            _mensaje("assistant", base),
+        ]
+
+    ventana = ChatOrchestrator._ventana(None, mensajes, turnos_de_persona=4, horas_frescas=6)
+
+    assert len(ventana) == 16  # los 4 intercambios mas recientes, completos
+    assert ventana[0].role == "user"
+
+
+def test_retomar_horas_despues_empieza_limpio():
+    """El "hola" de hoy no llega pegado a la gestion de la semana pasada:
+    el modelo retomaba una cita que ya no existe."""
+    mensajes = [
+        _mensaje("user", hace_minutos=600),
+        _mensaje("assistant", hace_minutos=599),
+        _mensaje("user", hace_minutos=0),  # vuelve 10 horas despues
+    ]
+
+    ventana = ChatOrchestrator._ventana(None, mensajes, turnos_de_persona=20, horas_frescas=6)
+
+    assert [m.role for m in ventana] == ["user"]
+
+
+def test_una_conversacion_corta_y_seguida_pasa_entera():
+    mensajes = [
+        _mensaje("user", 3),
+        _mensaje("assistant", 2),
+        _mensaje("user", 1),
+        _mensaje("assistant", 0),
+    ]
+
+    ventana = ChatOrchestrator._ventana(None, mensajes, turnos_de_persona=20, horas_frescas=6)
+
+    assert len(ventana) == 4
+
+
+def test_la_ventana_nunca_arranca_a_media_herramienta():
+    # Si el corte cae sobre filas de assistant/tool, se corre hasta la
+    # siguiente fila de la persona: un tool sin su assistant es basura.
+    mensajes = [
+        _mensaje("assistant", 4),
+        _mensaje("tool", 3),
+        _mensaje("user", 2),
+        _mensaje("assistant", 1),
+    ]
+
+    ventana = ChatOrchestrator._ventana(None, mensajes, turnos_de_persona=20, horas_frescas=6)
+
+    assert ventana[0].role == "user"
+    assert len(ventana) == 2

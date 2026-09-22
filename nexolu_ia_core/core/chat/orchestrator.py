@@ -18,7 +18,7 @@ import json
 import logging
 import time
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from nexolu_ia_core.core.agents.base import AgentDefinition
@@ -463,8 +463,12 @@ class ChatOrchestrator:
     async def _build_turns(self, conversation_id: str, context: TenantContext) -> list[ChatTurn]:
         from nexolu_ia_core.config import get_settings
 
-        limit = get_settings().ai_history_turns
-        messages = await self._repo.recent_messages(conversation_id, limit)
+        settings = get_settings()
+        limit = settings.ai_history_turns
+        # El limite cuenta mensajes DE LA PERSONA; las filas se traen con
+        # holgura porque cada intercambio con herramientas son varias.
+        messages = await self._repo.recent_messages(conversation_id, limit * 8)
+        messages = self._ventana(messages, limit, settings.ai_context_fresh_hours)
         turns = self._turns_from_messages(messages)
 
         if turns and turns[-1].role == Role.USER:
@@ -488,6 +492,49 @@ class ChatOrchestrator:
             turns[-1] = ChatTurn.user(f"[Contexto: hoy es {stamp} ({zona})]\n\n{turns[-1].content}")
 
         return turns
+
+    def _ventana(self, messages: list[Message], turnos_de_persona: int, horas_frescas: int) -> list[Message]:
+        """Qué parte del historial entra de verdad a la conversación.
+
+        Dos cortes, mirando del mensaje más nuevo hacia atrás:
+
+        - INACTIVIDAD: si entre un mensaje y el siguiente pasaron más de
+          ``horas_frescas``, lo de antes es otra visita. Sin este corte, el
+          "hola" de hoy llegaba pegado a la gestión de la semana pasada y el
+          modelo retomaba una cita que ya no existe.
+        - TAMAÑO: se cuentan mensajes de la PERSONA, no filas. Contando
+          filas, dos o tres intercambios con herramientas llenaban la
+          ventana y el bot saludaba de nuevo a mitad de conversación.
+
+        La ventana siempre arranca en un mensaje de la persona, para no
+        dejar huérfano el tramo assistant→tool del borde.
+        """
+        usuarios = 0
+        inicio = 0
+
+        for i in range(len(messages) - 1, -1, -1):
+            if (
+                horas_frescas > 0
+                and i < len(messages) - 1
+                and messages[i + 1].created_at - messages[i].created_at > timedelta(hours=horas_frescas)
+            ):
+                inicio = i + 1
+                break
+
+            if messages[i].role == "user":
+                usuarios += 1
+
+                if usuarios >= turnos_de_persona:
+                    inicio = i
+                    break
+
+        recorte = messages[inicio:]
+
+        # Que el borde no empiece a media herramienta.
+        while recorte and recorte[0].role != "user":
+            recorte = recorte[1:]
+
+        return recorte if recorte else messages[-1:]
 
     def _turns_from_messages(self, messages: list[Message]) -> list[ChatTurn]:
         turns: list[ChatTurn] = []
