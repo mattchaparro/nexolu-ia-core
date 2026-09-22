@@ -38,9 +38,12 @@ def build_tool_registry() -> ToolRegistry:
             description=(
                 "Guarda el nombre de la persona que escribe, asociado a su numero. "
                 "Llamala en cuanto sepas como se llama: sin ficha el negocio pierde "
-                "el contacto si la conversacion no termina en cita. Pero NO esperes "
-                "a tener el nombre para mirar la agenda: si ya sabes que quiere y "
-                "que dia, en el mismo turno llama tambien a `disponibilidad`."
+                "el contacto si la conversacion no termina en cita. Tambien sirve "
+                "para CORREGIR: si te dice 'soy Valentina, no Mateo', o el nombre "
+                "que tienes parece de perfil de WhatsApp (un punto, emojis, un "
+                "negocio), guarda el que ella te diga. Pero NO esperes a tener el "
+                "nombre para mirar la agenda: si ya sabes que quiere y que dia, en "
+                "el mismo turno llama tambien a `disponibilidad`."
             ),
             parameters={
                 "type": "object",
@@ -141,8 +144,20 @@ def build_tool_registry() -> ToolRegistry:
                     },
                     "empleado": {"type": "string", "description": "Opcional: con quien"},
                     "sede": {"type": "string", "description": "Solo si el negocio tiene varias"},
+                    "para_quien": {
+                        "type": "string",
+                        "description": (
+                            "Si la visita es para OTRA persona ('es para mi mama'), su "
+                            "nombre. Mandalo desde que lo sepas: queda guardado con el "
+                            "pedido y la reserva lo recibe aunque confirme tocando un boton."
+                        ),
+                    },
+                    "nombres": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Con `juntas`: como se llama cada persona, en el mismo orden que `servicios`.",
+                    },
                 },
-                "required": ["fecha"],
             },
         )
     )
