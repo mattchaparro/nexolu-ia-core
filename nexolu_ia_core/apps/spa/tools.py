@@ -181,7 +181,11 @@ def build_tool_registry() -> ToolRegistry:
                 "confirmado servicio, fecha y hora en la conversacion. Varios "
                 "servicios en `servicios` quedan como UNA sola cita, uno "
                 "despues del otro -- nunca digas que hay que agendarlos por "
-                "separado."
+                "separado. Si la persona YA tiene una cita del mismo servicio, "
+                "la herramienta no agenda: te devuelve esa cita y la pregunta "
+                "que debes hacer (mover con reagendar_cita, o repetir con "
+                "otra_mas=true). Para MOVER una cita nunca uses esta "
+                "herramienta: usa reagendar_cita."
             ),
             parameters={
                 "type": "object",
@@ -219,6 +223,14 @@ def build_tool_registry() -> ToolRegistry:
                     "para_quien": {
                         "type": "string",
                         "description": "Solo si la visita NO es para quien escribe (una hija, una amiga)",
+                    },
+                    "otra_mas": {
+                        "type": "boolean",
+                        "description": (
+                            "true SOLO cuando la herramienta aviso que ya tiene una cita "
+                            "del mismo servicio y la persona respondio que quiere OTRA "
+                            "aparte (no moverla)."
+                        ),
                     },
                 },
                 "required": ["fecha", "hora"],
