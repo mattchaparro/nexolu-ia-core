@@ -200,3 +200,33 @@ class Draft(Base):
     summary: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
+class KnowledgeEntry(Base):
+    """Lo que el bot sabe de un negocio y no sale de ninguna herramienta.
+
+    La política de garantías, si hay parqueadero, qué pasa si llego tarde:
+    Alejandro preguntó por las garantías y el bot contestó "no tengo esa
+    información" -- no estaba escrita en ningún lado -- y la conversación
+    terminó esperando a una persona que no llegó.
+
+    Es la excepción a "no hay tablas de negocio en el Core", y a propósito:
+    no son datos del negocio (precios, citas, stock siguen saliendo SOLO de
+    las herramientas de cada app) sino lo que el motor de IA SABE decir de
+    él. Vive acá para que cualquier app del ecosistema (spa, POS, colegio)
+    lo tenga sin rehacerlo; cada app lo edita desde su propio panel.
+    """
+
+    __tablename__ = "knowledge_entries"
+    __table_args__ = (Index("ix_knowledge_tenant", "app_id", "business_id"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    app_id: Mapped[str] = mapped_column(String(64))
+    business_id: Mapped[str] = mapped_column(String(64))
+    # "Garantías", "Parqueadero": corto, para la lista del panel.
+    topic: Mapped[str] = mapped_column(String(160))
+    # Lo que el bot dice. Texto del dueño del negocio.
+    answer: Mapped[str] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

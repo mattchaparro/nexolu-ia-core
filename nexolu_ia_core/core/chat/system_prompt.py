@@ -38,7 +38,14 @@ TOOL_DISCIPLINE = (
 
 
 class SystemPromptBuilder:
-    def build(self, *, app_name: str, agent: AgentDefinition, context: TenantContext) -> str:
+    def build(
+        self,
+        *,
+        app_name: str,
+        agent: AgentDefinition,
+        context: TenantContext,
+        knowledge: str = "",
+    ) -> str:
         parts = [
             BASE_PERSONA,
             f"Aplicacion: {app_name}. Rol: {agent.display_name}.",
@@ -53,6 +60,20 @@ class SystemPromptBuilder:
         if perfil:
             parts.append("Datos del negocio que atiendes:\n" + perfil)
 
+        # Las preguntas frecuentes que el negocio escribio (core/rag/knowledge).
+        # Tambien DATOS, del mismo tercero, y por eso antes del cierre de
+        # disciplina. La regla de no inventar va pegada: lo que no este aqui
+        # ni en una herramienta, no se sabe.
+        conocimiento = knowledge.strip()
+
+        if conocimiento:
+            parts.append(
+                "Preguntas frecuentes del negocio (respondelas con esto; si te "
+                "preguntan algo que no esta aqui ni sale de una herramienta, di "
+                "que no lo sabes y ofrece que alguien del equipo le escriba):\n"
+                + conocimiento
+            )
+
         # Con quien habla. Va DESPUES del negocio porque es lo mas concreto
         # del turno, y antes del cierre de disciplina como todo lo demas.
         quien = (context.user_profile or "").strip()
@@ -60,7 +81,7 @@ class SystemPromptBuilder:
         if quien:
             parts.append("Con quien estas hablando:\n" + quien)
 
-        if perfil or quien:
+        if perfil or quien or conocimiento:
             parts.append(TOOL_DISCIPLINE)
 
         return "\n\n".join(p for p in parts if p)

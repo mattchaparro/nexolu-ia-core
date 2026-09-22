@@ -17,6 +17,7 @@ from nexolu_ia_core.api.v1 import (
     conversations,
     drafts,
     health,
+    knowledge,
     usage,
 )
 from nexolu_ia_core.config import get_settings
@@ -54,6 +55,7 @@ def create_app() -> FastAPI:
     app.include_router(completions.router)
     app.include_router(conversations.router)
     app.include_router(drafts.router)
+    app.include_router(knowledge.router)
     app.include_router(usage.router)
     app.include_router(admin_apps.router)
     app.include_router(admin_tool_logs.router)

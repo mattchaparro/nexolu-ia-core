@@ -27,6 +27,11 @@ from nexolu_ia_core.core.chat.system_prompt import SystemPromptBuilder
 from nexolu_ia_core.core.memory.entities import Message
 from nexolu_ia_core.core.memory.repository import ConversationRepository
 from nexolu_ia_core.core.models.router import ModelRouter
+from nexolu_ia_core.core.rag.knowledge import (
+    KnowledgeRepository,
+    render_for_prompt,
+    select_relevant,
+)
 from nexolu_ia_core.core.schemas import (
     ChatMessageOut,
     ChatRequest,
@@ -128,7 +133,12 @@ class ChatOrchestrator:
         output_tokens = 0
         cost_reported: int | None = None
         final_text: str | None = None
-        system_prompt = self._prompts.build(app_name=app_display_name, agent=agent, context=context)
+        system_prompt = self._prompts.build(
+            app_name=app_display_name,
+            agent=agent,
+            context=context,
+            knowledge=await self._knowledge(app_identity.app_id, context.business_id, text),
+        )
 
         for _ in range(MAX_TOOL_CALLS_PER_MESSAGE):
             started = time.monotonic()
@@ -309,7 +319,12 @@ class ChatOrchestrator:
         output_tokens = 0
         cost_reported: int | None = None
         final_text: str | None = None
-        system_prompt = self._prompts.build(app_name=app_display_name, agent=agent, context=context)
+        system_prompt = self._prompts.build(
+            app_name=app_display_name,
+            agent=agent,
+            context=context,
+            knowledge=await self._knowledge(app_identity.app_id, context.business_id, text),
+        )
 
         for _ in range(MAX_TOOL_CALLS_PER_MESSAGE):
             started = time.monotonic()
@@ -459,6 +474,20 @@ class ChatOrchestrator:
         if agent.tool_names is None:
             return available
         return {name: tool for name, tool in available.items() if name in agent.tool_names}
+
+    async def _knowledge(self, app_id: str, business_id: str, query: str) -> str:
+        """Las preguntas frecuentes del negocio, listas para el prompt.
+
+        Si la tabla no responde (una migracion pendiente, la base caida a
+        medias) el chat sigue sin ellas: el bot que no sabe la politica de
+        garantias es mejor que el bot que no contesta.
+        """
+        try:
+            entries = await KnowledgeRepository(self._repo.session).active(app_id, business_id)
+        except Exception:
+            logger.exception("No se pudo leer el conocimiento del negocio %s/%s", app_id, business_id)
+            return ""
+        return render_for_prompt(select_relevant(entries, query))
 
     async def _build_turns(self, conversation_id: str, context: TenantContext) -> list[ChatTurn]:
         from nexolu_ia_core.config import get_settings

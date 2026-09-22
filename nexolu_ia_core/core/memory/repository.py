@@ -26,6 +26,11 @@ class ConversationRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
+    @property
+    def session(self) -> AsyncSession:
+        """La misma sesion, para repositorios hermanos (ej. conocimiento)."""
+        return self._session
+
     async def get_or_create(
         self,
         *,
