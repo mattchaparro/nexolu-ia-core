@@ -8,7 +8,10 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
     "pydantic-settings>=2.6",
-    "sqlalchemy>=2.0.36",
+    # Con [asyncio]: desde que SQLAlchemy dejó de instalar greenlet solo, una
+    # imagen reconstruida arrancaba sin él y la migración fallaba al subir
+    # (25-sep-2026). El motor asíncrono lo necesita siempre.
+    "sqlalchemy[asyncio]>=2.0.36",
     "aiosqlite>=0.20",
     "aiomysql>=0.2",
     "cryptography>=43.0",
