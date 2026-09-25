@@ -15,17 +15,19 @@ Dos ausencias deliberadas:
   donde importa ("a las 10 con Maria"). Una lista suelta del equipo no
   ayuda a agendar.
 
-Ninguna es `WriteTool`, y eso es una decision del CANAL: una escritura crea
-un borrador y le dice al modelo "la tarjeta ya se le mostro al usuario,
-invitalo a confirmar ahi". En WhatsApp no hay tarjeta -- la clienta diria
-"si" y el modelo generaria otro borrador, en bucle. Aca la confirmacion
-ocurre en palabras, y el prompt la exige. El dia que el panel del Spa tenga
-un chat con tarjetas, ese canal necesitara sus propias herramientas de
-escritura.
+Las del bot de WhatsApp no son `WriteTool`, y eso es una decision del
+CANAL: una escritura crea un borrador y le dice al modelo "la tarjeta ya se
+le mostro al usuario, invitalo a confirmar ahi". En WhatsApp no hay tarjeta
+-- la clienta diria "si" y el modelo generaria otro borrador, en bucle. Aca
+la confirmacion ocurre en palabras, y el prompt la exige.
+
+El panel del Spa si tiene chat con tarjetas (el agente `administrador`):
+sus herramientas de lectura van con permiso y `bloquear_horario` si es una
+`WriteTool`.
 """
 from __future__ import annotations
 
-from nexolu_ia_core.core.tools.base import Tool
+from nexolu_ia_core.core.tools.base import Tool, WriteTool
 from nexolu_ia_core.core.tools.registry import ToolRegistry
 
 
@@ -340,6 +342,135 @@ def build_tool_registry() -> ToolRegistry:
                     },
                 },
                 "required": ["motivo"],
+            },
+        )
+    )
+
+    # -- Las del panel ---------------------------------------------------
+    # De quien administra, nunca de la clienta: el Spa las marca
+    # allowsCustomers=false y responde 403 si llegan por WhatsApp. Aca
+    # llevan su permiso para que el Core ni siquiera se las ofrezca al
+    # modelo sin el.
+
+    registry.register(
+        Tool(
+            name="resumen_del_dia",
+            description=(
+                "Como le fue al negocio un dia: lo vendido en servicios, por medio de "
+                "pago, comisiones, gastos, productos, las citas del dia (completadas, "
+                "canceladas, sin cobrar), lo de cada persona y cuantas citas ENTRARON "
+                "ese dia por cada canal (pagina web, WhatsApp, panel). Para 'cuanto "
+                "vendi hoy', 'como nos fue ayer', 'mi resumen del dia'."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "fecha": {"type": "string", "description": "Como la dijeron: 'hoy', 'ayer', 'el viernes', o YYYY-MM-DD. Vacio = hoy."},
+                },
+            },
+            required_permission="reportes.ver",
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="ventas",
+            description=(
+                "Ventas de un periodo: total, servicios hechos, ticket promedio, lo de "
+                "cada persona, por medio de pago y los SERVICIOS MAS HECHOS. Para 'que "
+                "servicios se hicieron mas esta semana', 'cuanto vendio Marcela este "
+                "mes', 'ventas de la semana pasada'. Se cuenta por fecha de cobro."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "periodo": {"type": "string", "description": "'hoy', 'ayer', 'esta semana', 'semana pasada', 'este mes', 'mes pasado', 'este año'. Si lo dijeron asi, usa esto y no desde/hasta."},
+                    "desde": {"type": "string", "description": "Inicio si dieron fechas concretas ('1 de septiembre' o YYYY-MM-DD)."},
+                    "hasta": {"type": "string", "description": "Fin si dieron fechas concretas."},
+                    "persona": {"type": "string", "description": "Solo lo de esta persona del equipo, si la nombraron."},
+                },
+            },
+            required_permission="reportes.ver",
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="agenda",
+            description=(
+                "Las citas de un dia, con hora, clienta, servicio, con quien, estado y por "
+                "donde entro. Para 'que citas hay manana', 'que tiene Alejandra el viernes'."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "fecha": {"type": "string", "description": "Como la dijeron. Vacio = hoy."},
+                    "persona": {"type": "string", "description": "Solo las de esta persona, si la nombraron."},
+                },
+            },
+            required_permission="citas.ver_todas",
+        )
+    )
+
+    registry.register(
+        Tool(
+            name="clientas_sin_agendar",
+            description=(
+                "Las clientas que escriben por WhatsApp pero no agendan: cuantos mensajes "
+                "mandaron, cuando fue el ultimo y su ultima visita. Descarta a quien agendo "
+                "en ese tiempo o tiene cita por venir. Son ventas que se escaparon: a esas "
+                "vale la pena escribirles."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "dias": {"type": "integer", "minimum": 1, "maximum": 180, "description": "Cuantos dias hacia atras mirar. Por defecto 30."},
+                },
+            },
+            required_permission="clientes.ver",
+        )
+    )
+
+    registry.register(
+        WriteTool(
+            name="bloquear_horario",
+            description=(
+                "Bloquea horas de una persona del equipo en una fecha o un rango de fechas: "
+                "en ese tiempo no sale disponible ni en el bot, ni en la web, ni al agendar. "
+                "Para 'bloqueale a Alejandra el viernes de 5 a 6', 'Marcela no viene el lunes' "
+                "(todo el dia). Crea un borrador que la persona confirma en la tarjeta."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "persona": {"type": "string", "description": "A quien se le bloquea."},
+                    "desde": {"type": "string", "description": "Fecha como la dijeron ('el viernes', 'manana') o YYYY-MM-DD."},
+                    "hasta": {"type": "string", "description": "Ultima fecha si es un rango. Vacio = solo ese dia."},
+                    "hora_inicio": {"type": "string", "description": "HH:MM en 24 horas ('17:00'). Vacio = todo el dia."},
+                    "hora_fin": {"type": "string", "description": "HH:MM en 24 horas ('18:00')."},
+                    "todo_el_dia": {"type": "boolean"},
+                    "motivo": {"type": "string", "description": "Opcional: 'Cita medica', 'Vacaciones'..."},
+                },
+                "required": ["persona", "desde"],
+            },
+            required_permission="horarios.gestionar",
+            draft_type="bloqueo",
+            summarize=lambda v: (
+                f"Bloquear a {v.get('persona')} el {v.get('desde')}"
+                + (f" hasta el {v.get('hasta')}" if v.get("hasta") else "")
+                + (
+                    " todo el dia"
+                    if v.get("todo_el_dia") or not v.get("hora_inicio")
+                    else f" de {v.get('hora_inicio')} a {v.get('hora_fin')}"
+                )
+            ),
+            fields=lambda _context: {
+                "persona": {"type": "string", "label": "Persona"},
+                "desde": {"type": "string", "label": "Desde"},
+                "hasta": {"type": "string", "label": "Hasta"},
+                "hora_inicio": {"type": "string", "label": "Hora inicio (HH:MM)"},
+                "hora_fin": {"type": "string", "label": "Hora fin (HH:MM)"},
+                "motivo": {"type": "string", "label": "Motivo"},
             },
         )
     )

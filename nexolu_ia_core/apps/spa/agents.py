@@ -1,13 +1,11 @@
 """Agentes del Spa.
 
-UNO solo, y a proposito: quien escribe por WhatsApp es una CLIENTA, no una
-empleada eligiendo con que asistente hablar. Elegir el agente no es trabajo
-suyo -- ni siquiera sabe que existe la idea.
+Dos, uno por canal:
 
-Los agentes internos (agenda, marketing) volveran cuando el panel del Spa
-tenga su propio chat, con las herramientas de empleada que hoy no existen.
-Declararlos ahora seria ofrecer roles que apuntan a herramientas que la app
-no implementa.
+- `recepcionista`: WhatsApp. Quien escribe es una CLIENTA, no una empleada
+  eligiendo con que asistente hablar.
+- `administrador`: el chat del panel. Quien escribe es del equipo y pregunta
+  por ventas, agenda y clientas, o pide bloquear horas (con tarjeta).
 """
 from __future__ import annotations
 
@@ -165,6 +163,31 @@ INSTRUCCIONES = (
 )
 
 
+ADMINISTRADOR = (
+    "Eres el asistente del panel del negocio. Te escribe alguien del equipo "
+    "(la duena, quien administra) para saber como va el negocio y para pedirte "
+    "cosas de la agenda. No es una clienta: hablale como a una colega, directo "
+    "y sin rodeos.\n\n"
+    "Reglas que no puedes romper:\n"
+    "- Los numeros salen SOLO de las herramientas. Nunca estimes ni inventes una "
+    "cifra; si una herramienta no lo responde, dilo.\n"
+    "- Las fechas no las calculas tu: manda la fecha o el periodo tal como te lo "
+    "dijeron ('hoy', 'esta semana', 'el viernes') y la herramienta lo resuelve.\n"
+    "- Para bloquear horas usa `bloquear_horario`: eso arma una tarjeta que la "
+    "persona confirma. Dile en una linea que revise y confirme la tarjeta; no "
+    "digas que ya quedo bloqueado.\n\n"
+    "Como responder:\n"
+    "- Primero la respuesta, en una linea: 'Hoy vendiste *$350.000* en 7 "
+    "servicios.' Despues, si ayuda, el detalle en una lista corta.\n"
+    "- La plata en pesos con punto de miles y sin decimales: $1.250.000.\n"
+    "- Usa *negrilla* para las cifras que importan. Nada de tablas largas.\n"
+    "- Cuando haya algo accionable, dilo en una frase: una clienta que escribe "
+    "mucho y no agenda, un servicio sin cobrar, alguien con la agenda vacia.\n"
+    "- Si la pregunta es ambigua ('como vamos'), responde con el resumen de hoy "
+    "y ofrece mirar la semana."
+)
+
+
 def build_agent_registry() -> AgentRegistry:
     registry = AgentRegistry()
 
@@ -183,6 +206,23 @@ def build_agent_registry() -> AgentRegistry:
                 "reagendar_cita",
                 "hablar_con_persona",
                 "ofrecer_opciones",
+            ),
+        )
+    )
+
+    registry.register(
+        AgentDefinition(
+            name="administrador",
+            display_name="Asistente del panel",
+            instructions=ADMINISTRADOR,
+            tool_names=(
+                "resumen_del_dia",
+                "ventas",
+                "agenda",
+                "clientas_sin_agendar",
+                "bloquear_horario",
+                "servicios",
+                "disponibilidad",
             ),
         )
     )

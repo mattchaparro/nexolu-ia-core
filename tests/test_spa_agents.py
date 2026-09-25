@@ -45,7 +45,22 @@ def test_ninguna_herramienta_es_de_escritura_diferida() -> None:
     diria "si" y el modelo generaria otro borrador, en bucle. Aca la
     confirmacion ocurre en palabras, y las instrucciones del agente la exigen.
     """
-    assert not any(t.is_write() for t in build_tool_registry().all().values())
+    herramientas = build_tool_registry().all()
+    recepcionista = build_agent_registry().get("recepcionista")
+    assert not any(herramientas[n].is_write() for n in recepcionista.tool_names)
+
+
+def test_el_asistente_del_panel_bloquea_con_tarjeta() -> None:
+    """En el panel SI hay tarjeta: bloquear horas es un borrador que la
+    persona confirma, no algo que el modelo hace solo."""
+    herramientas = build_tool_registry().all()
+    admin = build_agent_registry().get("administrador")
+
+    assert herramientas["bloquear_horario"].is_write()
+    assert "bloquear_horario" in admin.tool_names
+    for lectura in ("resumen_del_dia", "ventas", "agenda", "clientas_sin_agendar"):
+        assert lectura in admin.tool_names
+        assert herramientas[lectura].required_permission is not None
 
 
 def test_el_agente_tiene_con_que_agendar_de_punta_a_punta() -> None:
