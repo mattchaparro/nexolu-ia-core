@@ -89,3 +89,21 @@ def test_el_perfil_tiene_tope_de_tamano() -> None:
     # Un perfil kilometrico desplaza al resto del prompt fuera del contexto.
     with pytest.raises(ValidationError):
         TenantContext(user_id="x", business_profile="a" * 2001)
+
+
+def test_lo_que_ya_paso_en_la_conversacion_entra_con_su_regla() -> None:
+    """Lo que eligio tocando botones no pasa por el modelo: sin esto le
+    preguntaba el servicio a quien ya habia tocado «Capping» (13-oct)."""
+    prompt = SystemPromptBuilder().build(
+        app_name="Nexolu Spa",
+        agent=_agent(),
+        context=TenantContext(
+            user_id="573001112233",
+            conversation_state="Ya eligio: servicio Capping.",
+        ),
+    )
+
+    assert "Ya eligio: servicio Capping." in prompt
+    assert "NO le vuelvas a preguntar nada que ya este aqui" in prompt
+    # Y la disciplina de herramientas sigue cerrando el prompt.
+    assert prompt.rstrip().endswith(TOOL_DISCIPLINE)

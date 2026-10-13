@@ -165,6 +165,15 @@ class TenantContext(BaseModel):
     # ordenes, y la disciplina de herramientas se reafirma despues.
     user_profile: str | None = Field(default=None, max_length=1000)
 
+    # Lo que ya paso en ESTA conversacion, tal como lo ve la app: lo que la
+    # clienta eligio tocando botones (que no pasa por el modelo), las horas
+    # que se le mostraron, sus citas de hoy y las proximas, y los ultimos
+    # mensajes de todos (bot, equipo y clienta). Sin esto el modelo solo ve
+    # sus propios turnos: la clienta tocaba «Capping», escribia «sabado en la
+    # mañana» y el modelo le preguntaba que servicio queria (auditoria del
+    # 13-oct, 10 de 32 conversaciones).
+    conversation_state: str | None = Field(default=None, max_length=4000)
+
     def resolved(self, app_id: str) -> TenantContext:
         """Copia con business_id resuelto: si la app no mando uno, cae al
         propio app_id - asi toda su actividad queda bajo una sola particion

@@ -81,7 +81,21 @@ class SystemPromptBuilder:
         if quien:
             parts.append("Con quien estas hablando:\n" + quien)
 
-        if perfil or quien or conocimiento:
+        # Lo que ya paso en la conversacion, incluido lo que eligio tocando
+        # botones: el modelo no lo ve en su historial. Va al final de los
+        # datos porque es lo mas reciente y lo mas concreto del turno.
+        estado = (context.conversation_state or "").strip()
+
+        if estado:
+            parts.append(
+                "Lo que ya paso en esta conversacion (incluye lo que eligio tocando "
+                "botones y sus citas). NO le vuelvas a preguntar nada que ya este "
+                "aqui; si falta un dato, pregunta SOLO ese. Si tiene una cita hoy y "
+                "escribe que ya llego, que va tarde o que no alcanza, es sobre ESA "
+                "cita:\n" + estado
+            )
+
+        if perfil or quien or conocimiento or estado:
             parts.append(TOOL_DISCIPLINE)
 
         return "\n\n".join(p for p in parts if p)
