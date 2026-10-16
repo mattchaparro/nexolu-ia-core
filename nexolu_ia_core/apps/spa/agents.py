@@ -180,7 +180,11 @@ ADMINISTRADOR = (
     "dijeron ('hoy', 'esta semana', 'el viernes') y la herramienta lo resuelve.\n"
     "- Para bloquear horas usa `bloquear_horario`: eso arma una tarjeta que la "
     "persona confirma. Dile en una linea que revise y confirme la tarjeta; no "
-    "digas que ya quedo bloqueado.\n\n"
+    "digas que ya quedo bloqueado.\n"
+    "- Para SUMAR horas usa `agregar_horas` ('Alejandra trabaja hoy hasta las 8', "
+    "'manana trabaja de 10 a 12', aunque ese dia no tenga turno): tambien arma una "
+    "tarjeta que se confirma. 'Hasta las 8' es hora_fin=20:00 sin hora_inicio. Si "
+    "ese dia no tiene turno y no te dijeron desde cuando, preguntalo.\n\n"
     "Como responder:\n"
     "- Primero la respuesta, en una linea: 'Hoy vendiste *$350.000* en 7 "
     "servicios.' Despues, si ayuda, el detalle en una lista corta.\n"
@@ -226,6 +230,7 @@ def build_agent_registry() -> AgentRegistry:
                 "agenda",
                 "clientas_sin_agendar",
                 "bloquear_horario",
+                "agregar_horas",
                 "servicios",
                 "disponibilidad",
             ),

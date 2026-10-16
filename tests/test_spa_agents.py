@@ -6,7 +6,7 @@ que no puede hacer -- ni cosas que no DEBE hacer.
 """
 from __future__ import annotations
 
-from nexolu_ia_core.apps.spa.agents import build_agent_registry
+from nexolu_ia_core.apps.spa.agents import ADMINISTRADOR, build_agent_registry
 from nexolu_ia_core.apps.spa.tools import build_tool_registry
 
 
@@ -58,6 +58,11 @@ def test_el_asistente_del_panel_bloquea_con_tarjeta() -> None:
 
     assert herramientas["bloquear_horario"].is_write()
     assert "bloquear_horario" in admin.tool_names
+    # Y la pareja: sumar horas ("Alejandra trabaja hoy hasta las 8").
+    assert herramientas["agregar_horas"].is_write()
+    assert herramientas["agregar_horas"].required_permission == "horarios.gestionar"
+    assert "agregar_horas" in admin.tool_names
+    assert "agregar_horas" in ADMINISTRADOR
     for lectura in ("resumen_del_dia", "ventas", "agenda", "clientas_sin_agendar"):
         assert lectura in admin.tool_names
         assert herramientas[lectura].required_permission is not None

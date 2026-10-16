@@ -433,6 +433,45 @@ def build_tool_registry() -> ToolRegistry:
 
     registry.register(
         WriteTool(
+            name="agregar_horas",
+            description=(
+                "SUMA horas de trabajo a una persona del equipo en un dia puntual: en esas horas "
+                "si sale disponible (agenda, bot y web), aunque ese dia no sea de su turno. "
+                "Para 'Alejandra trabaja hoy hasta las 8' (hora_fin=20:00, sin hora_inicio: se suma "
+                "desde donde termina su turno), 'manana Marcela trabaja de 10 a 12' (hora_inicio=10:00, "
+                "hora_fin=12:00, aunque no tenga turno ese dia). Es lo contrario de `bloquear_horario`. "
+                "Crea un borrador que la persona confirma en la tarjeta. Si el dia no es de su turno "
+                "y no te dijeron desde que hora, preguntalo."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "persona": {"type": "string", "description": "Quien trabaja esas horas."},
+                    "fecha": {"type": "string", "description": "Dia como lo dijeron ('hoy', 'manana', 'el sabado') o YYYY-MM-DD. Vacio = hoy."},
+                    "hora_inicio": {"type": "string", "description": "HH:MM en 24 horas ('10:00'). Vacio = desde que termina su turno de ese dia."},
+                    "hora_fin": {"type": "string", "description": "HH:MM en 24 horas ('20:00' para 'hasta las 8 de la noche')."},
+                    "motivo": {"type": "string", "description": "Opcional: 'Reemplazo', 'Dia libre de clase'..."},
+                },
+                "required": ["persona", "hora_fin"],
+            },
+            required_permission="horarios.gestionar",
+            draft_type="horas_extra",
+            summarize=lambda v: (
+                f"{v.get('persona')} trabaja {v.get('fecha') or 'hoy'} "
+                + (f"de {v.get('hora_inicio')} a {v.get('hora_fin')}" if v.get("hora_inicio") else f"hasta las {v.get('hora_fin')}")
+            ),
+            fields=lambda _context: {
+                "persona": {"type": "string", "label": "Persona"},
+                "fecha": {"type": "string", "label": "Dia"},
+                "hora_inicio": {"type": "string", "label": "Desde (HH:MM)"},
+                "hora_fin": {"type": "string", "label": "Hasta (HH:MM)"},
+                "motivo": {"type": "string", "label": "Motivo"},
+            },
+        )
+    )
+
+    registry.register(
+        WriteTool(
             name="bloquear_horario",
             description=(
                 "Bloquea horas de una persona del equipo en una fecha o un rango de fechas: "
